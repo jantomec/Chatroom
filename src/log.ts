@@ -8,7 +8,7 @@ export type Agent = "claude" | "codex";
 export interface Base { id: number; at: string; kind: string }
 export interface MessageRecord extends Base {
   kind: "message"; from: Participant; to: Participant[]; body: string;
-  via?: "repl" | "post" | "reply" | "final" | "summary"; turn?: string; op?: string; reply_to?: number;
+  via?: "repl" | "post" | "reply" | "final" | "summary"; turn?: string; op?: string; reply_to?: number;   // summary: the chatroom's own lines, or an agent's wrap-up for the user
   credit?: boolean;            // true when this message used one autonomy credit
   held?: boolean;              // true when its agent delivery was held for lack of credit
 }

@@ -218,3 +218,43 @@ test("prompts are recorded, relayed and answered", async () => {
   assert.deepEqual(claude.prompts, [{ id: "p1", decision: "deny", reason: "no" }]);
   assert.equal(room.state.prompts.has("p1"), false);
 });
+
+test("exchange summary: after three agent-to-agent messages and both idle, the last speaker is asked to summarize for the user, once", async () => {
+  const { room, claude, codex } = setup(20);
+  await room.postUser("Build it together.");
+  claude.final("@phil I'll take the parser."); await room.idle();      // 1
+  codex.final("@clara I'll take the CLI."); await room.idle();          // 2
+  claude.final("@phil parser done, merging yours."); await room.idle(); // 3
+  codex.final("[silent]"); await room.idle();                            // codex idle, nothing queued for anyone
+  const summaryTurn = room.log.records.find((r) => r.kind === "turn" && r.event === "started" && r.reason === "summary");
+  assert.ok(summaryTurn, "a summary turn was started");
+  assert.equal((summaryTurn as any).agent, "claude", "the last speaker is asked (phil's [silent] posted nothing)");
+  assert.match(claude.lastTurn.input, /The exchange has paused: you and the other agent have both gone idle/);
+  claude.final("Parser and CLI are done on both branches; nothing open."); await room.idle();
+  const summary = [...room.state.messages.values()].find((m) => m.via === "summary" && m.from === "claude");
+  assert.ok(summary); assert.deepEqual(summary!.to, ["user"]); assert.equal(summary!.credit, undefined);
+  assert.equal(room.log.records.filter((r) => r.kind === "turn" && r.event === "started" && r.reason === "summary").length, 1, "not asked twice");
+  // a new user message starts a new exchange; a short one gets no summary
+  await room.postUser("@clara thanks");
+  claude.final("You're welcome."); await room.idle();
+  assert.equal(room.log.records.filter((r) => r.kind === "turn" && r.event === "started" && r.reason === "summary").length, 1);
+});
+
+test("exchange summary: when the budget holds a message, the summary follows once both are idle", async () => {
+  const { room, claude, codex } = setup(1);
+  await room.postUser("Go.");
+  claude.final("@phil first"); await room.idle();        // credit 1 of 1; phil's turn from the user message is running, so it is steered
+  codex.final("@clara second"); await room.idle();       // held: budget used
+  assert.equal(room.state.exchange.held, true);
+  const summaryTurn = room.log.records.find((r) => r.kind === "turn" && r.event === "started" && r.reason === "summary");
+  assert.ok(summaryTurn, "summary requested"); assert.equal((summaryTurn as any).agent, "codex");
+  assert.match(codex.lastTurn.input, /budget is used up/);
+  void claude;
+});
+
+test("warm-up and the first turn racing each other connect a driver once", async () => {
+  const { room, claude, codex } = setup();
+  await Promise.all([room.warm(), room.postUser("@clara go")]);
+  assert.equal(claude.connects.length, 1); assert.equal(codex.connects.length, 1);
+  assert.equal(room.log.records.filter((r) => r.kind === "session").length, 2);
+});

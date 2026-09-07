@@ -27,6 +27,7 @@ export interface RoomState {
   prompts: Map<string, { agent: Agent; summary: string; request: unknown }>;
   lastRefs: Record<string, string | null> | null;
   interrupted: Record<Agent, { id: string; inputs: number[] } | null>;   // turns found open at startup
+  exchange: { agentMessages: number; lastSpeaker: Agent | null; held: boolean; summaryRequested: boolean; summaryPosted: boolean };   // since the user's last message
 }
 
 export const AGENTS: Agent[] = ["claude", "codex"];
@@ -39,6 +40,7 @@ export function fold(records: LogRecord[], limit: number): RoomState {
     turns: { claude: null, codex: null }, turnCount: 0, lastUserMessage: 0, creditsUsed: 0, limit, tasks: new Map(),
     sessions: { claude: { id: null, state: "none" }, codex: { id: null, state: "none" } },
     status: { claude: emptyStatus(), codex: emptyStatus() }, prompts: new Map(), lastRefs: null, interrupted: { claude: null, codex: null },
+    exchange: { agentMessages: 0, lastSpeaker: null, held: false, summaryRequested: false, summaryPosted: false },
   };
   const pendingHook: Record<Agent, number[]> = { claude: [], codex: [] };
   for (const r of records) {
@@ -46,14 +48,20 @@ export function fold(records: LogRecord[], limit: number): RoomState {
       case "message": {
         s.messages.set(r.id, r);
         if (r.op) s.ops.add(`${r.from}:${r.op}`);
-        if (r.from === "user") { s.lastUserMessage = r.id; s.creditsUsed = 0; }
-        else if (r.credit) s.creditsUsed++;
+        if (r.from === "user") { s.lastUserMessage = r.id; s.creditsUsed = 0; s.exchange = { agentMessages: 0, lastSpeaker: null, held: false, summaryRequested: false, summaryPosted: false }; }
+        else if (r.from === "claude" || r.from === "codex") {
+          if (r.credit) s.creditsUsed++;
+          if (r.to.includes(peerOf(r.from))) s.exchange.agentMessages++;
+          s.exchange.lastSpeaker = r.from;
+          if (r.held) s.exchange.held = true;
+          if (r.via === "summary" ) s.exchange.summaryPosted = true;
+        }
         if (r.held) for (const t of r.to) if (t === "claude" || t === "codex") s.heldFor[t].add(r.id);
         break;
       }
       case "turn": {
         const a = r.agent;
-        if (r.event === "started") { s.turns[a] = { id: r.turn, agent: a, inputs: r.inputs ?? [], explicitReply: false }; s.turnCount++; for (const i of r.inputs ?? []) s.received[a].add(i); }
+        if (r.event === "started") { s.turns[a] = { id: r.turn, agent: a, inputs: r.inputs ?? [], explicitReply: false }; s.turnCount++; for (const i of r.inputs ?? []) s.received[a].add(i); if (r.reason === "summary") s.exchange.summaryRequested = true; }
         else if (r.event === "delivered") { for (const i of r.inputs ?? []) s.received[a].add(i); }
         else if (r.event === "acked") { for (const i of r.inputs ?? []) s.received[a].add(i); pendingHook[a] = pendingHook[a].filter((i) => !(r.inputs ?? []).includes(i)); }
         else if (r.event === "released") { /* nothing: ids were never in received */ }
@@ -120,6 +128,7 @@ export class Room {
   state: RoomState;
   private starting: Record<Agent, boolean> = { claude: false, codex: false };
   private connected: Record<Agent, boolean> = { claude: false, codex: false };
+  private connecting: Record<Agent, Promise<void> | null> = { claude: null, codex: null };
   private pendingHook: Record<Agent, number[]> = { claude: [], codex: [] };
   private explicitReply: Record<Agent, boolean> = { claude: false, codex: false };
   private askWaiters = new Map<number, { agent: Agent; resolve: (r: { status: string; message?: MessageRecord }) => void }>();
@@ -160,10 +169,11 @@ export class Room {
   }
 
   /** An agent message from `post`/`reply` (idempotent by op) or a final reply. */
-  async postAgent(agent: Agent, p: { op?: string; body: string; to?: Participant[]; replyTo?: number; turn?: string; via?: "post" | "reply" | "final" }): Promise<MessageRecord> {
+  async postAgent(agent: Agent, p: { op?: string; body: string; to?: Participant[]; replyTo?: number; turn?: string; via?: "post" | "reply" | "final" | "summary" }): Promise<MessageRecord> {
     if (p.op) { const key = `${agent}:${p.op}`; if (this.state.ops.has(key)) { for (const m of this.state.messages.values()) if (m.from === agent && m.op === p.op) return m; } }
-    let to: Participant[];
-    if (p.replyTo && !p.to && p.via !== "final") { const target = this.state.messages.get(p.replyTo)?.from; to = target && target !== agent ? [target] : resolveTargets(agent, p.body, this.config.names).to; }
+    let to: Participant[] = ["user"];
+    if (p.via === "summary") to = ["user"];
+    else if (p.replyTo && !p.to && p.via !== "final") { const target = this.state.messages.get(p.replyTo)?.from; to = target && target !== agent ? [target] : resolveTargets(agent, p.body, this.config.names).to; }
     else to = resolveTargets(agent, p.body, this.config.names, p.to).to;
     const marker = parseMarker(p.body);
     const taskId = this.taskOf(p.body, p.replyTo, marker?.task ?? null);
@@ -279,7 +289,7 @@ export class Room {
   }
   private budgetSummary(): void {
     const waiting = AGENTS.filter((a) => this.state.heldFor[a].size > 0).map((a) => `@${this.handle(a)} has ${this.state.heldFor[a].size} held`).join("; ");
-    this.summary(`Budget ${this.state.creditsUsed}/${this.state.limit} used. ${waiting}. Address an agent to release its messages, or /budget N.`);
+    this.summary(`Budget ${this.state.creditsUsed}/${this.state.limit} used. ${waiting}. A summary of the exchange follows once both are idle; address an agent to release its messages, or /budget N.`);
   }
   private releaseHeldFor(to: Participant[], why: string): void {
     const ids: number[] = [];
@@ -305,6 +315,18 @@ export class Room {
   }
   async tick(): Promise<void> {
     await Promise.all(AGENTS.map((a) => this.tickAgent(a)));
+    await this.maybeSummary();
+  }
+  /** When an exchange between the agents has paused, ask the last speaker for one message to the user. */
+  private async maybeSummary(): Promise<void> {
+    const x = this.state.exchange;
+    if (x.summaryRequested || x.summaryPosted || !x.lastSpeaker) return;
+    if (AGENTS.some((a) => this.state.turns[a] || this.starting[a] || this.batchFor(a).length > 0)) return;
+    const reason = x.held ? "the autonomy budget is used up and a message to the other agent is being held" : x.agentMessages >= 3 ? "you and the other agent have both gone idle" : null;
+    if (!reason) return;
+    const a = x.lastSpeaker;
+    const text = `[chatroom] The exchange has paused: ${reason}. Post one message to @user, at most eight lines, with: what was done and where (files, branch); what you two agreed; what is still open; what you need from the user, if anything. No mentions of the other agent. Then end with [silent].`;
+    await this.startTurn(a, [], text, "summary");
   }
   private async tickAgent(a: Agent): Promise<void> {
     if (this.starting[a]) return;
@@ -340,19 +362,23 @@ export class Room {
   /** Connect a driver to its session (resuming the recorded id) once per process. */
   async ensureConnected(a: Agent): Promise<void> {
     if (this.connected[a]) return;
-    const wanted = this.state.sessions[a].id;
-    const spec = this.hooks.session?.(a) ?? { cwd: process.cwd(), brief: "" };
-    const res = await this.drivers[a].connect({ id: wanted, cwd: spec.cwd, brief: spec.brief });
-    this.connected[a] = true;
-    const event = res.resumed ? "resumed" : (wanted ? "rebuilt" : "started");
-    this.log.append({ kind: "session", agent: a, event, session: res.sessionId });
-    this.refold();
+    if (this.connecting[a]) return this.connecting[a]!;
+    this.connecting[a] = (async () => {
+      const wanted = this.state.sessions[a].id;
+      const spec = this.hooks.session?.(a) ?? { cwd: process.cwd(), brief: "" };
+      const res = await this.drivers[a].connect({ id: wanted, cwd: spec.cwd, brief: spec.brief });
+      this.connected[a] = true;
+      const event = res.resumed ? "resumed" : (wanted ? "rebuilt" : "started");
+      this.log.append({ kind: "session", agent: a, event, session: res.sessionId });
+      this.refold();
+    })();
+    try { await this.connecting[a]; } finally { this.connecting[a] = null; }
   }
   /** Connect both drivers now, so the status bar reports before the first turn; no model call is made. */
   async warm(): Promise<void> {
     for (const a of AGENTS) { try { await this.ensureConnected(a); } catch (e) { this.say(`  · ${this.handle(a)} could not connect: ${String(e)}`); } }
   }
-  private async startTurn(a: Agent, batch: number[]): Promise<void> {
+  private async startTurn(a: Agent, batch: number[], extraText?: string, reason?: string): Promise<void> {
     this.starting[a] = true;
     try {
       const d = this.drivers[a];
@@ -364,11 +390,12 @@ export class Room {
         this.state.interrupted[a] = null;
       }
       const id = `t-${String(this.state.turnCount + 1).padStart(4, "0")}`;
-      this.log.append({ kind: "turn", agent: a, turn: id, event: "started", inputs: batch });
+      this.log.append({ kind: "turn", agent: a, turn: id, event: "started", inputs: batch, ...(reason ? { reason } : {}) });
       this.explicitReply[a] = false;
       this.refold();
-      this.say(`  · @${this.handle(a)} starts turn ${id} with ${batch.length} message(s)`);
-      try { await d.startTurn(id, this.deliveryText(a, batch, recovery)); }
+      this.say(reason === "summary" ? `  · @${this.handle(a)} is asked to summarize the exchange for you` : `  · @${this.handle(a)} starts turn ${id} with ${batch.length} message(s)`);
+      const input = batch.length ? this.deliveryText(a, batch, recovery) : [recovery, extraText].filter(Boolean).join("\n\n");
+      try { await d.startTurn(id, input); }
       catch (e) {
         this.log.append({ kind: "turn", agent: a, turn: id, event: "failed", reason: `start: ${String(e)}` });
         this.refold();
@@ -422,7 +449,8 @@ export class Room {
     let finalId: number | undefined;
     if (body && body !== "[silent]") {
       const newest = turn.inputs.length ? Math.max(...turn.inputs) : undefined;
-      const m = await this.postAgentNoTick(a, { body, via: "final", turn: turn.id, replyTo: this.explicitReply[a] ? undefined : newest });
+      const isSummary = turn.inputs.length === 0 && this.log.records.some((r) => r.kind === "turn" && r.turn === turn.id && r.event === "started" && r.reason === "summary");
+      const m = await this.postAgentNoTick(a, { body, via: isSummary ? "summary" : "final", turn: turn.id, replyTo: this.explicitReply[a] ? undefined : newest });
       finalId = m.id;
     }
     this.returnPendingHook(a);
@@ -432,7 +460,7 @@ export class Room {
     await this.hooks.afterTurn?.(a);
     await this.tick();
   }
-  private async postAgentNoTick(a: Agent, p: { body: string; via: "final"; turn: string; replyTo?: number | undefined }): Promise<MessageRecord> {
+  private async postAgentNoTick(a: Agent, p: { body: string; via: "final" | "summary"; turn: string; replyTo?: number | undefined }): Promise<MessageRecord> {
     // same as postAgent but without scheduling; the caller ticks after the turn record
     const saved = this.tick; this.tick = async () => {}; try { return await this.postAgent(a, { body: p.body, via: p.via, turn: p.turn, ...(p.replyTo ? { replyTo: p.replyTo } : {}) }); } finally { this.tick = saved; }
   }

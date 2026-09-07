@@ -287,6 +287,15 @@ in which case they are released in order while credit lasts. When the budget run
 the chatroom posts one line to the user saying who is waiting on whom and what to type
 to continue.
 
+**The exchange summary.** An exchange is the agents' messages since the user last
+spoke. When it pauses, because the budget held a message or because both agents went
+idle after three or more messages between them, the chatroom asks the agent who spoke
+last for one message to the user: what was done and where, what the two agreed, what is
+open, what they need from the user, in at most eight lines. The request is one turn's
+input, the reply is an ordinary message to the user that costs no credit, and it happens
+once per exchange. Without it the user saw a productive conversation end in `[silent]`
+finals and had to read the whole thing to know where it stood (user, 2026-09-07).
+
 At most one turn is active per agent and conversation; the two agents run concurrently
 (G8). The scheduler runs after every appended line:
 

@@ -204,7 +204,7 @@ class Session {
     await this.repl.start();
     this.print(`chatroom · conversation "${this.name}" · ${shortPath(project.mainWorktree)} · ${config.names.claude} (Claude) and ${config.names.codex} (Codex) · /help for commands`);
     const recent = [...this.room.state.messages.values()].slice(-5);
-    for (const m of recent) this.print(`#${m.id} ${config.names[m.from as Agent] ?? m.from} → ${m.to.map((t) => "@" + (config.names[t as Agent] ?? t)).join(" ")}  ${m.at.slice(11, 16)}  ${m.via ?? ""}\n  ${m.body.split("\n")[0]?.slice(0, 120)}`);
+    for (const m of recent) this.print(`#${m.id} ${config.names[m.from as Agent] ?? m.from} → ${m.to.map((t) => "@" + (config.names[t as Agent] ?? t)).join(" ")}  ${m.at.slice(11, 16)}  ${m.via ?? ""}\n  ${m.body.split("\n").join("\n  ")}`);
     this.poll = setInterval(() => { void this.pollIpc(); }, 150);
     void this.room.warm().then(() => this.repl?.redraw());
     await this.room.tick();
