@@ -81,6 +81,8 @@ export class Repo {
     for (const k of ["claude", "codex", "integration"] as const) {
       if (!this.refOid(`refs/heads/${branches[k]}`)) must(this.git(this.p.commonDir, null, ["update-ref", `refs/heads/${branches[k]}`, head]), `create ${branches[k]}`);
       if (!existsSync(join(worktrees[k], ".git"))) {
+        // A registration whose directory is gone (the state directory was deleted) is stale: prune it first.
+        runGit(this.p.gitBin, [`--git-dir=${this.p.commonDir}`, "worktree", "prune"]);
         mkdirSync(base, { recursive: true });
         must(runGit(this.p.gitBin, [`--git-dir=${this.p.commonDir}`, "worktree", "add", "-q", worktrees[k], branches[k]]), `worktree add ${k}`);
       }
