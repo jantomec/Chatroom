@@ -1,8 +1,8 @@
 # Chatroom
 
 A terminal group chat for one user and two coding agents, Clara (Claude Code) and Phil
-(Codex), sharing one repository through per-agent worktrees. The project is in its design
-phase: the architecture is accepted, no code exists yet.
+(Codex), sharing one repository through per-agent worktrees. The architecture is accepted
+and Phase 0 (the vendor probes) is done; `src/` does not exist yet.
 
 ## Where things are
 
@@ -14,6 +14,11 @@ phase: the architecture is accepted, no code exists yet.
   and the document checks.
 - `docs/history/` holds the nine superseded drafts. They are a record, not a source: new
   revisions never cite them, and `ARCHITECTURE.md` stands on its own.
+- `probes/` holds the disposable Phase 0 probes (`NN-name.ts`, run with
+  `node probes/NN-name.ts`, Node 22.18+), their shared helpers under `probes/lib/`, raw
+  outputs under `probes/out/` (ignored by git) and sanitized recordings under
+  `probes/fixtures/`. Live probes spend the user's Claude and Codex quotas and build
+  throwaway repositories under `~/.local/state/chatroom-probes/`.
 
 ## Rules for working in this repo
 
@@ -36,12 +41,14 @@ phase: the architecture is accepted, no code exists yet.
 
 ## Verification
 
-There is no code gate yet. The document gate is the set of shell checks in
-`docs/STATUS.md` under "Document checks": dangling section references, guard index versus
-guard blocks, leftover em-dashes, stale terms. Run them after any edit to
-`ARCHITECTURE.md`.
+Code gate: `npm run typecheck` (strict TypeScript, `erasableSyntaxOnly` because the code
+runs through Node's type stripping without a build step) and `npm test` once `src/` has
+tests. Model-free probes (`01-sqlite`, `07-recovery`) rerun in seconds and must stay green.
+The document gate is the set of shell checks in `docs/STATUS.md` under "Document checks":
+dangling section references, guard index versus guard blocks, leftover em-dashes, stale
+terms. Run them after any edit to `ARCHITECTURE.md`.
 
 ## Next
 
-Phase 0 of `ARCHITECTURE.md` §22: disposable probes for the items in §19, in TypeScript,
-before any scheduler code. `docs/STATUS.md` names the two probes to run first.
+Phase 1 of `ARCHITECTURE.md` §22, the durable room core, on the layout of §21.
+`docs/STATUS.md` holds the resume point and the Phase 0 findings that changed the design.

@@ -1,12 +1,12 @@
 # Chatroom Architecture
 
-Status: implementation baseline, 2026-09-07. No code exists yet. Implementation starts with
-Phase 0 (§22), whose purpose is to answer the open items in §19 before any scheduler code
-is written.
+Status: implementation baseline, 2026-09-07. Phase 0 (§22) ran on 2026-09-07: its probes
+live under `probes/`, their recorded streams under `probes/fixtures/`, and every claim they
+settled is in §19 with the tool version. No scheduler code exists yet.
 
-Observed on the development machine: Claude Code 2.1.261, Codex CLI 0.153.3, Node 25.1.0,
-git 2.54.0 (Homebrew) and 2.50.1 (Apple), both on `PATH`. Versions are evidence for the
-smoke tests, not compatibility promises.
+Observed on the development machine: Claude Code 2.1.263 (2.1.261 for the entries of §19
+that name it), Codex CLI 0.153.3, Node 25.1.0, git 2.54.0 (Homebrew) and 2.50.1 (Apple),
+both on `PATH`. Versions are evidence for the smoke tests, not compatibility promises.
 
 How to read this document:
 
@@ -32,11 +32,14 @@ corrupting each other's work or the user's tree.
 
 Three things change when two agents share a repository, and each has a proportionate rule:
 
-1. **Two writers corrupt each other.** Each agent writes only its own worktree. This rule is
-   hard for working-tree files: both sandboxes bound shell writes to the working directory
-   by default, and permission rules bound Claude's native edits. For git metadata the rule
-   is enforced where the harness allows scoping and otherwise held by norm and detection,
-   as it is when the user runs the harness alone (§15.4).
+1. **Two writers corrupt each other.** Each agent writes only its own worktree. Both
+   sandboxes bound shell writes to the working directory by default, Codex's file edits go
+   through its sandbox, and permission rules bound Claude's native edits to the peer and
+   integration worktrees and the coordination state. Claude's native edits to the main
+   tree are held by the brief and the auto-mode classifier, as in solo use, because a rule
+   there closes the git allowance that native commits need (§15.1). For git metadata the
+   rule is enforced where the harness allows scoping and otherwise held by norm and
+   detection, as it is when the user runs the harness alone (§15.4).
 2. **A third party merges.** The orchestrator snapshots, integrates, syncs and applies with
    pinned git invocations and explicit paths, records what it expects each of its refs to
    be, and refuses to run over a state it did not expect.
@@ -52,6 +55,13 @@ means as the peer worktree.
 > **Guard G1.** The posture is parity with solo use. A stricter boundary than the user runs
 > daily must be argued as a coordination failure or data loss inside the parity model, not
 > as a different threat model. User decision, 2026-09-05.
+
+> **Guard G25.** Prompt before mechanism. When a mechanism would interfere with how the
+> models perform, add machinery to the chatroom, or leave the user unable to tell what is
+> happening, the rule goes into the brief instead; the user runs frontier models, which
+> follow it. The first application: the main-tree deny rules of §15.1 were dropped when
+> they were measured to close the git allowance, and the brief's "never write there" is
+> what holds. User decision, 2026-09-07.
 
 ### 0.2 Guards
 
@@ -81,6 +91,7 @@ means as the peer worktree.
 | G22 | The orchestrator's git never discovers a repository; every command carries recorded absolute paths. | Measured: a rewritten `.git` pointer redirects discovery; explicit paths ignore it. |
 | G23 | The hard boundary covers working-tree files. Git metadata is scoped where the harness allows it and otherwise protected by norm and detection; that limitation is stated, not hidden, and does not justify a commit broker or clones. | User decision; measured scoping on Codex, §19. |
 | G24 | The agents manage completion themselves: criteria, acceptance, settled decisions and escalation follow the protocol of §14.3, and the user is consulted only for the cases it names. No user checkpoint is added to the normal flow. | User decision, 2026-09-07. |
+| G25 | Prompt before mechanism. Where a rule would interfere with how the models perform, complicate the app, or make it hard for the user to see what is happening, the brief carries it instead. | User decision, 2026-09-07: frontier models follow the brief; enforced complexity hides what is going on. |
 
 ---
 
@@ -133,7 +144,7 @@ archive and `gc`; resolving sync conflicts in place.
 
 ```text
  ┌────────────────────────────── chatroom process ──────────────────────────────┐
- │  REPL: transcript · activity · permissions · status · slash commands         │
+ │  REPL: transcript · activity · permissions · status bar · slash commands     │
  │                         │                                      ▲             │
  │                         ▼                                      │             │
  │  Orchestrator: room order · scheduler · budget · recovery · integration      │
@@ -156,7 +167,7 @@ archive and `gc`; resolving sync conflicts in place.
 
 | Component | Responsibility |
 |---|---|
-| REPL | Input, transcript, activity, relayed prompts, commands. |
+| REPL | Input, transcript, activity, relayed prompts, status bar (§17.1), commands. |
 | Orchestrator | The single state machine and database writer. Resolves targets, schedules work, reserves autonomy credits, coordinates recovery. |
 | Store | Schema, migrations, transactions, JSONL mirror. |
 | IPC dispatcher | Imports agent operations, writes receipts and deliveries, enforces idempotency and limits. |
@@ -436,8 +447,12 @@ whose name matches `security.env_deny_patterns` (default `*KEY*`, `*SECRET*`, `*
 The Anthropic key removal is what keeps Claude on the subscription; the rest is a cheap
 default. `GIT_OPTIONAL_LOCKS=0` matters for coordination: measured on git 2.54.0, after a
 file in the peer's worktree is touched, `git status` run there rewrites the peer's index
-without the variable and leaves it alone with it. The Codex driver additionally sets
-`shell_environment_policy.ignore_default_excludes = false` and matching filters. The turn's
+without the variable and leaves it alone with it. The Codex driver does not rely on
+`shell_environment_policy` filters: measured on 0.153.3, `inherit = "none"`,
+`ignore_default_excludes = false` and a `filters` exclude entry all left `HOME`, `PATH` and a
+`*TOKEN*` variable visible to the agent's commands, while `set` entries were applied (§19).
+The scrubbed process environment is the only mechanism; app-server and `exec` commands
+inherit it. The turn's
 random directory nonce is part of the path rather than trusted from a payload; identity is
 assigned from the driver and the fixed drop root, never from a field in a file.
 
@@ -471,6 +486,9 @@ For the hook transport, the orchestrator writes one atomic file per batch under
 `to-agent/deliveries/`. `chatroom inbox` and `chatroom hook` read it and write a
 `delivery_ack` operation into the current drop directory; they never move or delete the
 delivery file. The orchestrator removes it after the database says it was accepted.
+`chatroom hook` writes its ack on every invocation, with an empty list when nothing was
+pending, and copies `effort.level` and `cwd` from the hook input into the ack's payload;
+the dispatcher hands those two fields to the driver as a status report (§17.1).
 
 ### 8.3 `ask` and `reply`
 
@@ -509,6 +527,14 @@ type DriverCapabilities = {
   nativeCommit: boolean;          // doctor: a native commit lands on the own branch only
 };
 
+type SessionStatus = {            // status bar, §17.1
+  model: string | null;           // as the harness reports it
+  effort: string | null;          // as the harness reports it
+  cwd: string | null;             // as the harness reports it
+  contextTokens: number | null;   // input side of the most recent model request
+  contextWindow: number | null;   // as the harness reports it
+};
+
 interface AgentDriver {
   probe(): Promise<ProbeReport>;
   connect(session: SessionSpec): Promise<DriverCapabilities>;
@@ -523,6 +549,10 @@ interface AgentDriver {
 }
 ```
 
+`events()` yields a `status` event carrying a `SessionStatus` whenever one of its fields
+changes. A driver fills a field only from what the harness sent; a configured value is not
+a report, and the REPL shows `default` in its place (§17.1).
+
 ### 9.1 What `chatroom doctor` checks
 
 - Both executables and versions; the git binary and version; `node:sqlite`.
@@ -530,9 +560,11 @@ interface AgentDriver {
 - A session starts, ends a turn, and resumes by id; the hook fires and its context reaches
   the model; steering or hook delivery works.
 - **Write boundary**, through a shell command and through the harness's native file tool:
-  a write inside the own worktree succeeds; writes into the main tree, the peer worktree,
-  the integration worktree and the IPC directories fail. `writeBoundary` false refuses that
-  agent, because rule 1 of §0.1 is hard for working-tree files.
+  a write inside the own worktree succeeds; shell writes into the main tree, the peer
+  worktree, the integration worktree and the IPC directories fail, and so do native writes
+  into all of those except, on Claude, the main tree, which the brief covers (§15.1).
+  `writeBoundary` false refuses that agent, because rule 1 of §0.1 is hard for those
+  paths.
 - **Native commit**: `git commit` in the own worktree lands on the own branch; `main`, the
   peer's branch and the integration ref do not move; whether an approval or Auto-review
   elevation was involved is recorded. `nativeCommit` false does not refuse the agent; it is
@@ -550,7 +582,8 @@ claude -p \
   --input-format stream-json --output-format stream-json --verbose --include-hook-events \
   --append-system-prompt "<brief>" \
   --settings '<inline JSON, §15.1>' \
-  --permission-mode auto --permission-prompts host [--model <model>]
+  --permission-mode auto --permission-prompts host --permission-prompt-tool stdio \
+  [--model <model>] [--effort <level>]
 ```
 
 Working directory: the conversation's Claude worktree. Environment: §8.1. A turn is one
@@ -561,25 +594,67 @@ so resume happens once per chatroom run; if the process dies the driver reconnec
 Reply text and cost come from `result`; activity from `assistant` events: `text` blocks,
 `tool_use` blocks, `thinking` blocks if present. The system prompt and settings are not
 persisted with the session and are passed on every process start. The user's settings,
-hooks, MCP servers and `CLAUDE.md` load as they would in solo use.
+hooks, MCP servers and `CLAUDE.md` load as they would in solo use. Measured on 2.1.263
+(§19): the `system` init event is emitted only after the first user message, so the driver
+sends the first turn before it expects one; three sequential turns ran in one process and
+closing stdin ended it with exit 0 within a second; `--resume <id>` in a new process
+reported the same `session_id` and the worktree `cwd`, and remembered a hook delivery from
+the earlier process; after a SIGKILL during a tool call, `--resume` recovered the session,
+though the killed tool call was not in the model's memory.
 
-The hook, registered in the inline settings:
+The hook, registered in the inline settings for both tool outcomes, because the docs
+say `PostToolUse` runs "after a tool call succeeds" and `PostToolUseFailure` "after a tool
+call fails", and a run of failing commands must not delay delivery (measured: fourteen
+failing commands in one turn fired `PostToolUse` twice):
 
 ```json
-{"hooks": {"PostToolUse": [{"matcher": "", "hooks": [{"type": "command", "command": "\"$CHATROOM_BIN\" hook"}]}]}}
+{"hooks": {
+  "PostToolUse":        [{"matcher": "", "hooks": [{"type": "command", "command": "\"$CHATROOM_BIN\" hook"}]}],
+  "PostToolUseFailure": [{"matcher": "", "hooks": [{"type": "command", "command": "\"$CHATROOM_BIN\" hook"}]}]}}
 ```
 
 `chatroom hook` reads the hook event on stdin, drains `CHATROOM_DELIVERY_DIR`, writes a
 `delivery_ack`, and if anything was pending prints
-`{"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": "<delivery text>"}}`.
+`{"hookSpecificOutput": {"hookEventName": "<the input's hook_event_name>", "additionalContext": "<delivery text>"}}`;
+the CLI rejects output whose `hookEventName` differs from the event that ran the hook
+(measured: "Hook returned incorrect event name"). The `PostToolUseFailure` input carries
+`error`, `is_interrupt` and `duration_ms` next to the common fields.
 Hooks run as ordinary child processes of Claude Code, outside the Bash sandbox, with the
 driver's environment. An agent generating text without tool calls hears nothing until its
 next tool call or the end of its turn, in which case the batch returns to `queued`.
 
 Auto mode: the classifier decides routine actions; the rest arrive as control requests on
 stdout, are recorded with `reviewer: user`, shown in the REPL with a short id, and answered
-on stdin. Fallback: one process per turn with the same flags if the long-lived process
-fails Phase 0.
+on stdin. The stdout route needs `--permission-prompt-tool stdio` next to
+`--permission-prompts host`: measured on 2.1.263, without it a prompt is denied at once
+with a `permission_denied` system event and nothing reaches stdout; with it the CLI writes
+`{"type":"control_request","request_id":…,"request":{"subtype":"can_use_tool","tool_name":…,
+"input":…,"permission_suggestions":[…],"blocked_path":…,"tool_use_id":…}}` and accepts
+`{"type":"control_response","response":{"subtype":"success","request_id":…,"response":
+{"behavior":"allow","updatedInput":…}}}` or `{"behavior":"deny","message":…}` on stdin. A
+`{"subtype":"initialize"}` control request is answered with the command catalogue but does
+not enable the route. The alternative route, `--permission-prompt-tool mcp__<server>__<tool>`
+with a Chatroom-provided MCP server, was measured to work as well and is the fallback if a
+release drops the stdio value. The long-lived process passed Phase 0, so the one-process-
+per-turn fallback is not used.
+
+Status (§17.1). `--model` and `--effort` are passed only when `driver.claude.model` or
+`driver.claude.effort` is set; an unset key leaves the user's own model and saved effort in
+force, as in solo use. The driver reports the model and the working directory from the
+`system` init event, the context tokens from each `assistant` event's `message.usage` as
+`input_tokens + cache_creation_input_tokens + cache_read_input_tokens`, the input-only
+formula the Claude Code status line documents for its `used_percentage`, and the context
+window from `modelUsage[<model>].contextWindow` on each `result`; `modelUsage` is a map with
+one entry per model the session used, side calls included (measured: a `claude-haiku-4-5`
+entry next to the session model), so the driver reads the entry whose key equals the init
+event's `model`, which is the model name without the user's `[1m]` suffix and reports the
+1M window. `thinking` content blocks did not appear in `assistant` events at effort
+`xhigh`; the stream carries `system/thinking_tokens` events with an `estimated_tokens`
+count instead, so activity shows a thinking counter, not text. The effort in force is
+not in the stream, and the docs say the init event omits it; it is in every hook input as
+`effort.level`, next to `cwd`, so `chatroom hook` copies both into its `delivery_ack`
+(§8.2). A turn without a tool call reports no effort; the bar keeps the last report, or
+shows `default` before the first.
 
 > **Guard G2, G3, G5.** CLI on the subscription; `auto` with host-relayed prompts; the hook
 > is the injection channel. Everything the Agent SDK offers is a wrapper around these flags,
@@ -591,8 +666,17 @@ fails Phase 0.
 
 `codex app-server` over stdio, JSON-RPC. `thread/start` or `thread/resume` with `cwd`,
 `approvalPolicy: "on-request"`, `approvalsReviewer: "auto_review"`, and a `config` override
-map carrying the profile of §15.2 and the environment policy of §8.1. `turn/start`;
-`turn/steer` with `expectedTurnId`; `turn/interrupt`. Streamed items become driver events:
+map carrying the profile of §15.2 as nested objects, measured:
+`{"default_permissions": "<name>", "permissions": {"<name>": {"filesystem": {…}}},
+"shell_environment_policy": {"set": {…}}}`. The response's legacy `sandbox` field then
+reads `workspaceWrite` with `writableRoots` equal to the profile's write entries, which is
+how the driver confirms the profile loaded; no `thread/settings/updated` follows
+`thread/start`, `activePermissionProfile` is absent from the response, and
+`permissionProfile/list` names only the built-in profiles. A `default_permissions` value
+without a matching table fails `thread/start` with "failed to load configuration", which is
+where the legacy fallback below is decided. `turn/start`;
+`turn/steer` with `expectedTurnId`, measured to be accepted during a running command and
+rejected after the turn ended with error `-32600` "no active turn to steer"; `turn/interrupt`. Streamed items become driver events:
 `reasoning` for summaries, `agent_message` for interim text, `command_execution` and
 `file_change` for tool activity. Approval requests `item/commandExecution/requestApproval`,
 `item/fileChange/requestApproval` and `item/permissions/requestApproval` reach the REPL
@@ -604,15 +688,42 @@ the user's existing Codex login, shared by the CLI, app-server and desktop app.
 Auto-review is the closest equivalent to Claude's auto mode. Docs: "Auto-review only applies
 when approvals are interactive"; with `never` "there is nothing to review". Decisions are
 recorded with rationale when observable and as `rationale: unavailable` otherwise;
-escalation and unavailability fall back to the user visibly.
+escalation and unavailability fall back to the user visibly. Measured on 0.153.3 (§19): an
+escalation the model requested with `sandbox_permissions: "require_escalated"` went to
+Auto-review and no `requestApproval` reached the client; `item/autoApprovalReview/started`
+and `/completed` carried `review.status`, `riskLevel`, `userAuthorization` and `rationale`,
+and a `guardianWarning` notification repeated the decision in prose. Auto-review approved
+an escalated write into the main tree because the turn's input had authorized one rerun;
+under the profile the approved rerun still failed with "operation not permitted" and no
+file was written, while under legacy `workspace-write` an approved escalated `git commit`
+ran unsandboxed and succeeded. What Auto-review approves follows what the turn input
+says, and a turn input carries the peer's messages as well as the user's.
 
 Fallback, if app-server probing fails: `codex exec --json -o <file> -c … -` and
 `codex exec resume <thread-id> --json -o <file> -c … -`, with the same overrides passed
-through `-c`; `exec resume` has no `--cd`, so the working directory comes from spawning in
-the worktree. There are no approvals, Auto-review or steering on this path: an action that
+through `-c`, the profile table as a TOML inline table
+(`-c 'permissions.<name>.filesystem={ ":root" = "read", "<path>" = "write", … }'`,
+measured); `exec resume` has no `--cd`, so the working directory comes from spawning in
+the worktree, measured to hold. The JSONL stream carries `thread.started` with
+`thread_id`, `turn.started`, `item.started`, `item.completed` and `turn.completed`. There are no approvals, Auto-review or steering on this path: an action that
 would need approval fails, the agent reports it, and the user performs it. Hook delivery
 is enabled only when Chatroom's hook is the sole non-managed hook source, because the trust
 bypass runs every enabled hook from every layer.
+
+Status (§17.1). `model` on `thread/start` and `model_reasoning_effort` in the `config` map
+are set only from `driver.codex.model` and `driver.codex.effort`. The `thread/start` and
+`thread/resume` responses carry `model`, `reasoningEffort` and `cwd` (measured:
+`gpt-5.6-sol` and `xhigh` from the user's `config.toml`, `low` when the config map sets
+`model_reasoning_effort`);
+`thread/settings/updated` carries them again when they change; `thread/tokenUsage/updated`
+carries `tokenUsage.last` and `tokenUsage.modelContextWindow` (measured: 258400 for
+`gpt-5.6-sol`, non-null on every update during a turn), and the context tokens are
+`last.inputTokens` alone: measured and documented alike, the cached count is below the
+input count, so it is not added again.
+The schema also defines a `model/rerouted` notification, whose fields Phase 0 records
+before the driver uses it. Under `exec`, `turn.completed` carries `usage.input_tokens` and
+nothing carries the model, the effort or the window, so those cells show the configured
+value or `default` and the context cell shows a token count.
 
 > **Guard G4.** `auto_review` with `on-request` and user fallback on app-server; no
 > approvals under `exec`. Do not set `never` on app-server, and do not make the unstable
@@ -778,8 +889,9 @@ Recovery
 ```
 
 `{commit_note}` is "Commit on it if and when you like; Chatroom snapshots uncommitted work
-when it integrates." when `nativeCommit` probed true, and "Committing is unavailable in
-this session; Chatroom snapshots your work when it integrates." otherwise. `brief.extra`
+when it integrates. A `packed-refs.lock` error from `git commit` is harmless." when
+`nativeCommit` probed true, and "Committing is unavailable in this session; Chatroom
+snapshots your work when it integrates." otherwise. `brief.extra`
 from configuration is appended with a visible label, size-capped, never interpolated into
 shell code.
 
@@ -891,9 +1003,11 @@ their criteria, rounds used, settled decisions and pending questions.
 
 ## 15. The boundary
 
-One rule is hard: an agent writes working-tree files only in its own worktree, the drop
-root and the scratch root, and never in Chatroom's coordination state. Everything else is
-parity with solo use.
+One rule is hard for the shell on both harnesses and for every native write outside the
+main tree: an agent writes working-tree files only in its own worktree, the drop root and
+the scratch root, and never in Chatroom's coordination state. Claude's native edits to
+the main tree are the one place the rule is carried by the brief (G25, §15.1). Everything
+else is parity with solo use.
 
 ### 15.1 Claude
 
@@ -918,11 +1032,11 @@ parity with solo use.
   },
   "permissions": {
     "deny": [
-      "Edit(//<main>/**)",            "Write(//<main>/**)",
       "Edit(//<peer worktree>/**)",   "Write(//<peer worktree>/**)",
       "Edit(//<integration worktree>/**)", "Write(//<integration worktree>/**)",
-      "Edit(//<ipc root>/**)",        "Write(//<ipc root>/**)",
-      "Edit(//<git common dir>/**)",  "Write(//<git common dir>/**)",
+      "Edit(//<ipc root>/<peer>/**)", "Write(//<ipc root>/<peer>/**)",
+      "Edit(//<ipc root>/<me>/to-agent/**)", "Write(//<ipc root>/<me>/to-agent/**)",
+      "Edit(//<ipc root>/<me>/staging/**)",  "Write(//<ipc root>/<me>/staging/**)",
       "Read(//<main>/.chatroom/**)",
       "Read(//<secret path>/**)", "…"
     ]
@@ -934,16 +1048,33 @@ parity with solo use.
   the working directory, added directories and the session temp directory, plus, for a
   linked worktree, "the main repository's shared `.git` directory so commands such as
   `git commit` can update refs and the index. Writes to `hooks/` and `config` inside that
-  directory remain denied." That is what makes native commits work.
+  directory remain denied." That is what makes native commits work: measured on 2.1.263
+  with the sandbox alone, `git commit` in the linked worktree landed on the own branch.
   `allowUnsandboxedCommands: false` is the one setting that keeps the rule hard; without it
   the classifier could approve a rerun outside the sandbox.
 - **`denyWrite` inside the shared `.git`** narrows the allowance to the agent's own admin
-  directory, the object store and its own ref. Whether these entries take effect inside
-  the automatic allowance is a Phase 0 item; if they do not, git metadata on Claude is
-  protected by norm and detection only, and `/status` says so (§15.4).
-- **Native tool writes** are denied for the main tree, the peer and integration worktrees,
-  the IPC root and the git directory. The agent's own drop file is written by
-  `chatroom post` through the Bash allowance, so the IPC deny costs nothing.
+  directory, the object store and its own ref. Measured on 2.1.263: the entries take
+  effect inside the automatic allowance. With them, `git commit` moved only the own
+  branch, while `git update-ref refs/heads/main`, a write into the peer's admin
+  directory, an update of the peer and integration refs and `git pack-refs` were all
+  refused; without them, the same session moved `main` and wrote into the peer's admin
+  directory. Git metadata on Claude is therefore scoped as it is on Codex.
+- **Permission deny rules feed the sandbox.** Measured: every `Edit` and `Write` deny rule
+  also denies sandboxed commands, by path prefix. A deny over the whole IPC root blocked
+  `chatroom post`'s own drop file, so the IPC rules name only the peer's directory and the
+  own `to-agent/` and `staging/`. A deny over the main tree covers `<main>/.git`, which is
+  the shared git directory, and closes the linked-worktree allowance: `git commit` then
+  fails on `index.lock` in the agent's own admin directory. No narrower `allowWrite` of
+  the git directory reopens it, since deny wins for writes, and a character class in a
+  rule (`[!.]*`) matches nothing. A main-tree rule would therefore cost Claude its native
+  commits, so there is none (G25, user decision 2026-09-07): native `Edit` and `Write`
+  into the main tree are decided by the auto-mode classifier and the brief's "never write
+  there", as in solo use, while shell writes into the main tree stay blocked by the
+  sandbox's default scope and commits work.
+- **Native tool writes** are denied for the peer and integration worktrees and the
+  orchestrator-owned IPC directories, none of which sits above the git directory. The own
+  drop and scratch roots are left out of the deny rules because a deny there would also
+  block the shell; `chatroom post` writes its drop file through the Bash `allowWrite`.
 - **Native tool reads** of the secret paths and of `.chatroom/` are denied by `Read` rules,
   matching the Bash `denyRead` list; the docs say a Read deny also blocks Edit and Write on
   the same path, and that Grep and Glob honour Read denies on a best-effort basis.
@@ -990,7 +1121,12 @@ ignore_default_excludes = false
 Measured on 0.153.3 under `codex sandbox`: without the six git entries, `git add` in a
 linked worktree fails because the index lock lives in the admin directory outside the
 worktree, under the legacy `workspace-write` sandbox and under a worktree-only profile
-alike; with them, `git commit` succeeds and `main` does not move. `:root` and `/` are both
+alike; with them, `git commit` succeeds and `main` does not move. With git 2.54.0 the commit
+also prints "error: Unable to create '…/packed-refs.lock': Operation not permitted" and
+still succeeds, because that version locks `packed-refs` during a ref update and the
+profile denies it; 2.50.1 does not touch the file. `packed-refs` stays denied and the
+brief names the message as harmless. Codex runs commands through `/bin/zsh -lc`, so the
+git an agent uses is the login shell's, whichever the orchestrator pinned. `:root` and `/` are both
 accepted as read entries; a deny inside the root read holds; a read entry for a file inside
 a write region holds; a profile without a system read grant cannot start `sh`. Precedence
 per the docs: "More specific entries override broader entries … deny takes precedence over
@@ -1013,8 +1149,8 @@ verification, no clones. The user runs these harnesses with the same exposure ev
 Working-tree files are the hard boundary. Git metadata is different: a linked worktree
 needs the shared `.git` directory to commit, and that directory also holds the peer's admin
 directory, every ref and the object store. Chatroom scopes writes there where the harness
-allows it, measured on Codex through the profile, to be measured on Claude through
-`denyWrite`, and otherwise relies on the brief's instruction not to touch other refs, on
+allows it, measured on Codex through the profile and on Claude through `denyWrite` inside
+the linked-worktree allowance, and otherwise relies on the brief's instruction not to touch other refs, on
 `GIT_OPTIONAL_LOCKS=0` so that read-only commands do not rewrite a peer's index, on the
 expectation checks of §16.1, and on the reflog for recovery. An agent moving another ref
 is a norm violation of the same kind the user accepts when running the harness alone.
@@ -1203,14 +1339,16 @@ relayed approvals get short ids and are answered asynchronously.
     · phil ✓ auto-review approved: npm test (low risk)
 
 !p3 phil requests network access to registry.npmjs.org
-clara: working · phil: waiting p3 · budget 1/6 · integration +2 · parser
+clara  working     fable · high     chatroom/…/claude  ~/…/9f3c/claude  ctx 37%
+phil   waiting p3  gpt-5.5 · medium  chatroom/…/codex   ~/…/9f3c/codex   ctx 12%
+main   feature/parser  ~/Projects/app   budget 1/6 · integration +2 · task parser
 > _
 ```
 
 | Command | Effect |
 |---|---|
 | `/budget [N]` | Show or set the autonomy credit limit. |
-| `/status` | Agents, sessions, turns, held deliveries, permissions, refs and expectations, worktree attachment, main's branch, git binary, native-commit availability. |
+| `/status` | Agents, sessions, turns, held deliveries, permissions, refs and expectations, worktree attachment, main's branch, git binary, native-commit availability; the status bar's values with their source and age (§17.1). |
 | `/stop <agent\|all>` | Protocol interrupt, then SIGTERM, then SIGKILL. |
 | `/allow <id> once\|session`, `/deny <id> [reason]` | Resolve a relayed approval request. |
 | `/new`, `/switch`, `/conversations`, `/rename` | Conversation lifecycle. |
@@ -1240,6 +1378,7 @@ Configuration, TOML, project overriding global:
 | `task.auto_integrate` | `false` | Proposed: run `/integrate` for both agents on acceptance. |
 | `agents.claude.handle`, `agents.codex.handle` | `clara`, `phil` | The agents' names in the chat (§6). Paths and refs use the harness ids. |
 | `driver.claude.model`, `driver.codex.model` | vendor default | Model override. |
+| `driver.claude.effort`, `driver.codex.effort` | vendor default | Effort override: `--effort` on Claude, `model_reasoning_effort` on Codex (§17.1). |
 | `driver.claude.long_lived` | `true` | One process per session. |
 | `driver.codex.prefer_app_server` | `true` | App-server before `exec`. |
 | `driver.codex.approval_policy`, `driver.codex.approvals_reviewer` | `on-request`, `auto_review` | G4. |
@@ -1250,6 +1389,7 @@ Configuration, TOML, project overriding global:
 | `security.claude_auto_allow_sandboxed_bash` | `true` | Proposed; `autoAllowBashIfSandboxed`. |
 | `logging.raw_events`, `logging.retention_days` | `false`, `30` | Raw vendor streams. |
 | `display.level` | `activity` | `quiet`, `activity`, `full`. |
+| `display.status_bar` | `true` | Show the status bar (§17.1); `false` leaves only the prompt. |
 | `brief.extra` | empty | Project guidance appended to both briefs. |
 | `workspace.state_dir`, `workspace.link_worktrees` | platform default, `true` | Runtime root; proposed symlink. |
 
@@ -1258,6 +1398,53 @@ Unknown keys are errors in project config. A config fingerprint is recorded with
 Activity kinds: `text`, `reasoning_summary`, `tool`, `tool_result`, `permission`, from
 `assistant` events on Claude and `item.*` events on Codex. Raw vendor streams are off by
 default, size-capped, and removable. Chatroom never records environment-variable values.
+
+### 17.1 Status bar
+
+The lines directly above the prompt are a status bar: one line per agent and one for the
+room, redrawn in place with the input line whenever a value changes. The bar never wraps
+and never uses the alternate screen, so the REPL stays line-oriented (§1.1).
+
+```text
+clara  working     fable · high     chatroom/…/claude  ~/…/9f3c/claude  ctx 37%
+phil   waiting p3  gpt-5.5 · medium  chatroom/…/codex   ~/…/9f3c/codex   ctx 12%
+main   feature/parser  ~/Projects/app   budget 1/6 · integration +2 · task parser
+```
+
+| Column | Value | Source |
+|---|---|---|
+| state | `idle`, `working`, `waiting <id>` for a relayed approval, `held` while the budget holds its trigger, else the session state of §13 when it is not `healthy` | orchestrator |
+| model, effort | what the harness reports for the session | driver `status` event (§9, §10, §11) |
+| branch | the branch the worktree's `HEAD` named at the last expectation refresh; `detached` after a `worktree_detached` event | workspace manager (§16.1) |
+| directory | the worktree path, `$HOME` as `~`, middle components elided first when the terminal is narrow | workspace manager, checked against the harness's reported `cwd` (§13) |
+| context | the input side of the agent's most recent model request as a percentage of the model's context window | driver `status` event |
+| room line | main's branch and path, credits used of `autonomy.limit`, integration commits ahead of main, the open task with the newest activity | orchestrator, workspace manager |
+
+Context is measured the same way on both harnesses: the tokens the most recent request
+sent as input. On Claude that is `input_tokens + cache_creation_input_tokens +
+cache_read_input_tokens` from the newest `assistant` event, the formula the Claude Code
+status line documents for its own `used_percentage`; on Codex it is
+`tokenUsage.last.inputTokens` from the newest `thread/tokenUsage/updated`. Output tokens
+are not counted. The window is `modelUsage[<model>].contextWindow` from the newest Claude
+`result` and `tokenUsage.modelContextWindow` on Codex. Both figures update during a turn.
+Claude's window is known only after the first `result` of the session, and `exec` never
+reports one; without a window the cell shows the token count. Measured windows: 1000000
+for `claude-fable-5-1` with the user's `[1m]` model setting, 258400 for `gpt-5.6-sol`. A rebuilt session (§13)
+resets the cell to unknown.
+
+Nothing on the bar is a configured value presented as a report. When Chatroom passed no
+model or effort and the harness reports none, the cell reads `default`; when the harness
+reports a value, that value is shown even where it differs from the configuration, since
+Claude falls back to the highest effort the model supports and Codex can reroute a model.
+A cell with no report at all reads `n/a`. `/status` lists the same values with their
+source and the age of each report.
+
+> **Comment.** Claude Code's own status line receives the same fields, but the docs
+> present it as part of the interactive interface and do not say whether its command runs
+> under `-p`, whereas every hook input carries `effort.level` and `cwd` by documentation and
+> the event stream carries usage per request. Chatroom reads what it already receives
+> rather than registering a second command. On Codex the app-server notification carries
+> the values directly, and `exec` reports no window.
 
 ---
 
@@ -1291,6 +1478,7 @@ default, size-capped, and removable. Chatroom never records environment-variable
 | Database corruption | Stop; preserve files; never rebuild authority from the mirror. |
 | JSONL mirror inconsistent | Rewrite from SQLite. |
 | Disk full | Stop accepting messages before acknowledging them. |
+| A status cell has no harness report | `default` for model and effort, a token count for context without a window, `n/a` otherwise; configuration is never shown as a report (§17.1). |
 
 ---
 
@@ -1313,9 +1501,25 @@ default, size-capped, and removable. Chatroom never records environment-variable
   schema defines `thread/start`, `thread/resume`, `turn/start`, `turn/steer` with
   `expectedTurnId`, `turn/interrupt`, the three `requestApproval` methods, the
   `autoApprovalReview` notifications, and `ApprovalsReviewer` with `auto_review`.
+- **Codex 0.153.3 app-server schema, status fields:** `thread/tokenUsage/updated` carries
+  `tokenUsage.last` and `.total` (`inputTokens`, `cachedInputTokens`, `outputTokens`,
+  `reasoningOutputTokens`, `totalTokens`, optional `cacheWriteInputTokens`) and a nullable
+  `modelContextWindow`; the `thread/start` and `thread/resume` responses carry `model`,
+  `reasoningEffort` and `cwd`; `Thread.model` and `Thread.reasoningEffort` are "not
+  per-turn execution telemetry"; `turn/start` accepts `model` and `effort` that "Override
+  … for this turn and subsequent turns"; `thread/settings/updated` carries `model`,
+  `effort` and `cwd`;
+  `model/list` entries carry `id`, `model`, `displayName`, `defaultReasoningEffort` and
+  `supportedReasoningEfforts`; `config/read` returns `model`, `model_reasoning_effort` and
+  `model_context_window`; `ReasoningEffort` is a string, "A non-empty reasoning effort value
+  advertised by the model", not an enum; a `model/rerouted` notification exists.
 - **Claude 2.1.261:** flags `--settings`, `--permission-prompts host|none`,
   `--permission-mode auto`, `--include-hook-events`, `--session-id`, `--resume`,
   `--input-format stream-json`.
+- **Claude 2.1.263:** `--effort <level>` "(low, medium, high, xhigh, max)" and
+  `--model <model>` in `--help`; `claude -p --input-format stream-json --output-format
+  stream-json` with stdin at end-of-file exits 0 and prints nothing, so no init event can be
+  sampled without a first message.
 - **Node 25.1.0:** `node:sqlite` loads with an experimental warning.
 - **git 2.54.0:** the six `/apply` states; `merge.autoStash` defeats the overlap refusal
   without `--no-autostash`; a `pre-merge-commit` hook runs unpinned and not pinned; an
@@ -1325,6 +1529,116 @@ default, size-capped, and removable. Chatroom never records environment-variable
   broker-style snapshot through explicit paths works; `git status` in a touched peer
   worktree rewrites its index without `GIT_OPTIONAL_LOCKS=0` and not with it. Two git
   binaries on `PATH`, 2.50.1 and 2.54.0.
+- **Phase 0, 2026-09-07, `probes/` (Node 25.1.0 driver, Homebrew git 2.54.0 pinned for
+  the orchestrator side, Claude Code 2.1.263, Codex 0.153.3):**
+  - **`node:sqlite` on Node 22.23.2, 24.20.0 and 25.1.0** (SQLite 3.51.3, 3.53.4, 3.50.4):
+    twelve SIGKILLs per version at random points of a writer committing three-row
+    transactions under WAL and `synchronous = FULL` lost no committed group and left no
+    partial group; `journal_mode` reads `wal`, `synchronous` 2, `foreign_keys` 1,
+    `busy_timeout` 5000; a foreign-key violation throws `errcode` 787 and a UNIQUE violation
+    2067 with `errstr` "constraint failed"; AUTOINCREMENT does not reuse a deleted id;
+    ROLLBACK undoes a whole transaction; a `readOnly` connection reads committed rows while
+    the writer holds `BEGIN IMMEDIATE` and refuses writes; a second writer gets `errcode` 5
+    "database is locked" after its `busy_timeout`; 22 and 25 print the ExperimentalWarning,
+    24 does not. About 1.8 s per version.
+  - **Claude Code 2.1.263, session:** `claude auth status` reports `authMethod`
+    `claude.ai` and `apiProvider` `firstParty`; the init event follows the first user
+    message, carries `model` `claude-fable-5-1` (settings say `claude-fable-5-1[1m]`),
+    `cwd`, `session_id` equal to `--session-id`, `permissionMode`, `apiKeySource`,
+    `claude_code_version`, `capabilities`, and no `effort`; three turns in one process;
+    stdin close exits 0 in 0.3 s; `--resume <id>` keeps the id and the hook delivery;
+    `--include-hook-events` emits `system/hook_started` and `system/hook_response` with
+    `hook_name` `PostToolUse:Bash`, `stdout`, `exit_code`, `outcome`; the PostToolUse hook
+    from inline `--settings` fired and its `additionalContext` reached the model; the hook
+    input carried `cwd`, `permission_mode`, `effort.level` `xhigh` with `--effort` unset
+    and `low` with `--effort low`, and the environment carried `CLAUDE_EFFORT` and
+    `CLAUDE_PROJECT_DIR`; each `assistant` event carries `message.model` and
+    `message.usage` with the three input fields; the `result` carries `modelUsage` keyed by
+    model with `contextWindow` 1000000 for the session model and a `claude-haiku-4-5`
+    side entry; `rate_limit_event` and `system/thinking_tokens` messages appear; no
+    `thinking` content blocks at `xhigh`; auto mode ran a `touch` in the worktree without
+    any host handshake; manual mode without `--permission-prompt-tool stdio` denied the
+    same `touch` with a `permission_denied` event and with the flag sent a
+    `control_request` of subtype `can_use_tool` and honoured the `control_response`;
+    an MCP `--permission-prompt-tool` received `tool_name`, `input` and `tool_use_id`;
+    `sleep 130` is refused by the Bash tool itself ("Blocked: sleep 130 …"); SIGKILL
+    during a tool call, then `--resume`: same `session_id`, recovery turn succeeded, the
+    killed call absent from the model's memory.
+  - **Claude Code 2.1.263, boundary (§15.1 settings, auto mode, `probes/03*`):** shell
+    writes into the main tree, the peer and integration worktrees and the IPC root fail
+    with "operation not permitted"; native `Write` into those and into the git directory
+    is refused with "File is in a directory that is denied by your permission settings";
+    shell `cat` and native `Read` of the secret path and of `.chatroom` are refused;
+    `Edit`/`Write` deny rules also deny the shell by prefix: under `Edit(//<ipc root>/**)`
+    the own drop-root write failed, and under `Edit(//<main>/**)` `git commit` failed on
+    `index.lock` in the own admin directory; with the sandbox alone the commit landed and
+    `update-ref refs/heads/main` moved `main` and a write into the peer's admin directory
+    succeeded; with the `denyWrite` list alone, and with an explicit `allowWrite` of the
+    git directory plus the list, the commit landed and `main`, the peer admin directory,
+    the peer and integration refs and `packed-refs` were refused; an `allowWrite` of the
+    git directory under the main-tree deny rule did not reopen it; `[!.]*` in a rule
+    matched nothing and the commit still failed; `hooks/` and `config` in the shared git
+    directory stayed denied; `--include-hook-events` showed `PostToolUse` firing for 2 of
+    14 Bash calls in one turn, the successful ones; `PostToolUseFailure` fired for a
+    failing call with `error`, `is_interrupt` and `duration_ms`, delivered
+    `additionalContext`, and the CLI rejected output whose `hookEventName` named the other
+    event; the Bash tool timeout is 120 s ("Command did not complete within its 120s
+    timeout and was moved to the background"); with the final rule set of §15.1 (no
+    main-tree rule) in one session: shell writes into the main tree, the peer worktree and
+    the IPC root refused, the drop-root write and `git commit` succeeded with only the own
+    branch moving, `main`, the peer admin directory and `packed-refs` refused, native
+    `Write` into the peer and integration worktrees and the deliveries directory refused,
+    native `Read` of the secret path refused, an instructed native `Write` into the main
+    tree allowed by the classifier with no prompt, and the hooks fired on all 12 tool
+    calls, `PostToolUse` for the 5 that succeeded and `PostToolUseFailure` for the 7 that
+    failed.
+  - **Codex 0.153.3 app-server:** `initialize` with `clientInfo` and `capabilities`, then
+    `initialized`; `thread/start` accepted `approvalPolicy` `on-request`,
+    `approvalsReviewer` `auto_review` and the §15.2 profile as a nested `config` map; the
+    response's `sandbox` field listed the profile's write entries as `writableRoots`; no
+    `thread/settings/updated` after start, no `activePermissionProfile` on the response,
+    `permissionProfile/list` names only `:read-only`, `:workspace`,
+    `:danger-full-access`; `config/read` returns the user's `model`,
+    `model_reasoning_effort` and the rest of `config.toml`; a missing profile fails
+    `thread/start` with "default_permissions requires a `[permissions]` table"; a routine
+    command ran with no approval request and no review; `thread/tokenUsage/updated` on
+    every request with `last.inputTokens`, `cachedInputTokens` below it, and
+    `modelContextWindow` 258400; `git commit` in the worktree moved only the own branch
+    with no approval and no review, printing the packed-refs.lock error of §15.2;
+    `turn/steer` accepted during `sleep 6` and the steered word appeared in the reply,
+    rejected after the turn with `-32600` "no active turn to steer"; `thread/resume` in a
+    new process returned four turns, remembered the first, and showed
+    `reasoningEffort` `low` from `model_reasoning_effort` in the config map; an escalated
+    write into the main tree was approved by Auto-review (`riskLevel` low,
+    `userAuthorization` high, rationale citing the turn input) with no `requestApproval`
+    to the client, and the rerun still failed under the profile; under legacy
+    `workspace-write` with `writable_roots` an escalated `git commit` was approved by
+    Auto-review and succeeded unsandboxed; `shell_environment_policy.set` applied, `inherit`
+    `none`, `ignore_default_excludes` `false` and `filters` did not remove any variable;
+    a 25 s command completed and its output reached the model; SIGKILL mid-command, then
+    `thread/resume`: the killed turn shows `status` `interrupted`, the thread is `idle`, a
+    recovery turn completed. Turns took 5 to 33 s at effort `xhigh`.
+  - **Codex 0.153.3 `exec`:** `-c default_permissions=… -c 'permissions.<name>.filesystem={…}'`
+    accepted as a TOML inline table; `--json` emits `thread.started` with `thread_id`,
+    `turn.started`, `item.started`, `item.completed` and `turn.completed` with
+    `usage.input_tokens`, `cached_input_tokens`, `cache_write_input_tokens`,
+    `output_tokens`, `reasoning_output_tokens` and no model or window; `exec resume <id> -`
+    read the prompt from stdin, ran in the spawn directory and remembered the first run;
+    the commit moved only the own branch; a write into the main tree failed with
+    "operation not permitted" and nothing asked for approval; the environment policy had
+    the same non-effect as on app-server.
+  - **Recovery classification (§16.7), model-free:** 30 cases over snapshot, integrate,
+    apply and abort with a crash injected after every step, once before the row was
+    recorded and once after: every snapshot crash recovered to the uncrashed end state
+    with exactly one snapshot commit; a ref moved by someone else before `ref_cas` stopped
+    with `needs_user` and nothing overwritten; an integration merge that crashed after
+    the command was classified done by its parents; a conflicting integration merge left
+    `MERGE_HEAD`, was aborted and marked `failed`; a crash between the main merge and its
+    transaction classified `needs_user`, and `/apply --abort` refused for the unrecorded
+    index; a crash before the merge ran reran a fresh preflight, which caught a file the
+    user had created meanwhile; a merge the user committed before restart classified done
+    by the user; abort with an unrecorded row classified done when `MERGE_HEAD` was gone
+    and refused with a changed index. 3.2 s.
 
 ### Documented
 
@@ -1340,6 +1654,33 @@ default, size-capped, and removable. Chatroom never records environment-variable
 - **Claude Code sessions:** per-working-directory storage; `--continue` scoped to the
   directory.
 - **Claude Agent SDK:** claude.ai login not permitted for SDK agents.
+- **Claude Code status line and hooks:** the status line command receives `model.id`,
+  `model.display_name`, `cwd`, `context_window.context_window_size` ("200000 by default, or
+  1000000 for models with extended context"), `context_window.used_percentage`, "calculated
+  from input tokens only: `input_tokens + cache_creation_input_tokens +
+  cache_read_input_tokens`", and `effort.level`, which "Reflects the live session value" and
+  is "Absent when the current model does not support the effort parameter"; it runs "once
+  when a session starts" and again when "A new assistant message arrives", debounced at
+  300 ms; nothing states whether it runs under `-p`. The hook common input fields include
+  `cwd` and `effort`, "Object with a `level` field holding the effort level in effect when
+  the hook runs", which "reports the level Claude Code ran instead" when the set level is
+  unsupported and is "Present for events that fire within a tool-use context, such as
+  `PreToolUse`, `PostToolUse`".
+- **Claude Code stream and SDK types:** the `system` init message carries `model`, `cwd`
+  and `permissionMode`; its `effort` field is one Claude Code "omits from the init message
+  your application reads"; each `assistant` message carries `message.usage` with
+  `input_tokens`, `cache_creation_input_tokens` and `cache_read_input_tokens`; the `result`
+  carries `modelUsage`, a map from model name to a record with `contextWindow: number`,
+  cumulative across turns in a streaming-input session; `setModel()`, `supportedModels()`
+  and `getContextUsage()` exist as control requests.
+- **Claude Code effort:** `--effort` "Overrides the `modelSettings` and `effortLevel`
+  settings for this session and does not persist"; the current models accept `low`,
+  `medium`, `high`, `xhigh` and `max`; an unsupported level "falls back to the highest
+  supported level at or below the one you set"; the default is `high` on every model that
+  supports effort except Opus 4.7; `CLAUDE_CODE_EFFORT_LEVEL` outranks `--effort`; `/effort`
+  sent through `-p` "applies to the current session only" and can report `Not applied`
+  while a model-default hold is in effect, "so pass `--effort` at launch instead";
+  `CLAUDE_CODE_DISABLE_1M_CONTEXT=1` makes a native 1M model report a 200K window.
 - **Codex configuration:** `shell_environment_policy.inherit` default `all`;
   `ignore_default_excludes` default true, "Keep variables containing KEY, SECRET, or
   TOKEN"; `mcp_servers.<id>.enabled`; `apps.<id>.enabled`; `web_search`; `agents.enabled`.
@@ -1347,12 +1688,22 @@ default, size-capped, and removable. Chatroom never records environment-variable
   `read | write | deny`; the precedence sentence quoted in §15.2; Beta; "Configure either
   `default_permissions` and `[permissions]`, or `sandbox_mode` … but not both."
 - **Codex Auto-review:** requires interactive approvals; `never` leaves nothing to review.
+- **Codex configuration and `exec`:** `model`, "Model to use"; `model_reasoning_effort`,
+  `minimal | low | medium | high | xhigh`, "Responses API only; `xhigh` is model-dependent";
+  `model_context_window`, "Context window tokens available to the active model";
+  `codex exec --json` emits `turn.completed` with `usage.input_tokens`,
+  `cached_input_tokens`, `output_tokens` and `reasoning_output_tokens`, in the documented
+  sample with `cached_input_tokens` below `input_tokens`, and no field for the model or the
+  context window.
 - **Codex app-server:** experimental; the per-thread `permissions` parameter is
   experimental and is not used.
 - **git-merge:** `--abort` "will in some cases be unable to reconstruct the original
   (pre-merge) changes"; `--no-overwrite-ignore` is documented to abort.
 
 ### Phase 0
+
+All items ran on 2026-09-07; the results are the "Phase 0" bullet above and the summaries
+under `probes/fixtures/summaries/`. Open: the interactive comparison at the end of item 8.
 
 1. `node:sqlite` durability suite on the oldest supported Node LTS.
 2. Claude: several sequential turns in one `-p` stream-json process; `--resume` later; the
@@ -1372,6 +1723,14 @@ default, size-capped, and removable. Chatroom never records environment-variable
 6. Kill mid-generation and resume on both harnesses; tool-command timeouts.
 7. Recovery classification against a crash injected after each step of every operation,
    including a crash between a main merge and its transaction.
+8. Status sources (§17.1). Claude: the init event's `model` and `cwd`; `message.usage` on
+   each `assistant` event, and whether `message.model` is present so a fallback model would
+   show; `modelUsage[<model>].contextWindow` on the `result`; `effort.level` in the
+   `PostToolUse` hook input with `--effort` set and unset. App-server:
+   `thread/tokenUsage/updated` during a turn with a non-null `modelContextWindow`; the
+   `thread/start` response's `model` and `reasoningEffort` with the overrides; the shape of
+   `model/rerouted`. `exec`: `turn.completed.usage`. Then resume each session in the
+   harness's own interface and compare its context figure with Chatroom's.
 
 ---
 
@@ -1400,6 +1759,11 @@ default, size-capped, and removable. Chatroom never records environment-variable
   `[ask-user]` holds that task's deliveries and a user reply releases them; summaries
   target the user, cost nothing and trigger nobody.
 - **Mirror tests**: partial lines, malformed JSON, missing or duplicate records, rewrite.
+- **Status bar tests** with fake drivers: every cell unknown before the first report; a
+  percentage only with a known window and a token count without one; `default` only when
+  neither configuration nor the harness supplied a value, and the harness's value when the
+  two differ; the shortening order at narrow widths; `detached` after `worktree_detached`;
+  a rebuilt session resets the context cell.
 - **Driver fixtures** recorded from sanitized vendor streams; live smoke tests opt-in.
 - **Compatibility policy**: a vendor upgrade that changes an event shape disables that
   adapter until probe and parser pass.
@@ -1408,8 +1772,11 @@ default, size-capped, and removable. Chatroom never records environment-variable
 
 ## 21. Implementation
 
-TypeScript on the Phase-0-verified Node LTS range; `node:sqlite` if it passes. Vendor types
-stop at the adapter boundary.
+TypeScript on Node 22.18 or later, run without a build step through Node's type stripping,
+which rules out parameter properties and enums; `node:sqlite` passed the Phase 0 suite on
+22.23.2, 24.20.0 and 25.1.0, and 24 is the first line that loads it without the
+experimental warning. Vendor types stop at the adapter boundary. `probes/` holds the
+disposable Phase 0 probes and their sanitized fixtures; nothing in `src/` imports them.
 
 ```text
 src/
@@ -1419,7 +1786,7 @@ src/
   ipc/        protocol.ts, importer.ts, receipts.ts, deliveries.ts, paths.ts
   drivers/    types.ts, claude-cli.ts, codex-app-server.ts, codex-cli.ts, doctor.ts, env.ts
   workspace/  git.ts, repository.ts, snapshot.ts, merge.ts, refs.ts, apply.ts, steps.ts, recovery.ts
-  ui/         renderer.ts, permissions.ts, activity.ts
+  ui/         renderer.ts, permissions.ts, activity.ts, statusbar.ts
   test-support/ fake-driver.ts, crash-injector.ts, scratch-repo.ts
 ```
 
@@ -1433,7 +1800,8 @@ nor a writable database connection.
 **First usable release: phases 0 to 5.**
 
 0. **Spikes** for every Phase 0 item in §19, later folded into `doctor`. Exit: every
-   first-release driver claim has a recorded fixture.
+   first-release driver claim has a recorded fixture. Done 2026-09-07 (§19, `probes/`),
+   except the interactive comparison in item 8, which needs the user at a terminal.
 1. **Durable room core**: schema, migrations, mirror, targets, deliveries, budget, startup
    reconciliation, fake drivers, property tests. Exit: crash injection cannot lose or
    duplicate logical messages.
@@ -1441,8 +1809,9 @@ nor a writable database connection.
    agent commands, security suite. Exit: every accepted operation has one durable result
    and no orchestrator path can be redirected by an agent-controlled entry.
 3. **Drivers**: Claude in auto mode with the hook; Codex app-server with Auto-review and
-   steering; `exec` fallback; scrubbed environment; minimal recovery. Exit: both agents
-   chat concurrently and receive a mid-turn message.
+   steering; `exec` fallback; scrubbed environment; minimal recovery; the status bar.
+   Exit: both agents chat concurrently, receive a mid-turn message, and the status bar
+   shows each agent's model, effort and context as the harness reported them.
 4. **Worktrees and the boundary**: runtime roots, Claude settings, Codex profile with legacy
    fallback, the doctor checks. Exit: each agent edits, tests and commits in its own
    worktree, cannot write main, the peer, integration or IPC, and only its own branch moves.
@@ -1467,6 +1836,10 @@ nor a writable database connection.
 5. Convenience symlink (proposed).
 6. Whether to prefer `/` over `:root` in the Codex profile once app-server confirms both.
 7. Whether `security.secret_paths` should include `.env` files outside the worktrees.
+8. Changing an agent's model or effort from the REPL, `/model <agent> <value>` and
+   `/effort <agent> <level>`: Claude accepts `/model` and `/effort` as message text under
+   `-p` and a `setModel()` control request; Codex accepts `model` and `effort` on
+   `turn/start`. Not in the first release; the status bar shows what is in force.
 
 ---
 
@@ -1478,6 +1851,10 @@ nor a writable database connection.
 - Claude Code permissions: https://code.claude.com/docs/en/permissions
 - Claude Code sessions: https://code.claude.com/docs/en/sessions
 - Claude Code headless mode: https://code.claude.com/docs/en/headless
+- Claude Code status line: https://code.claude.com/docs/en/statusline
+- Claude Code model configuration: https://code.claude.com/docs/en/model-config
+- Claude Code settings reference: https://code.claude.com/docs/en/settings-reference
+- Claude Agent SDK TypeScript reference: https://code.claude.com/docs/en/agent-sdk/typescript
 - Claude Agent SDK overview: https://code.claude.com/docs/en/agent-sdk/overview
 - Codex App Server: https://learn.chatgpt.com/docs/app-server
 - Codex permission profiles: https://learn.chatgpt.com/docs/permissions
