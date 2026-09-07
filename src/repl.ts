@@ -51,7 +51,9 @@ export class Repl {
     this.out = opts.output ?? process.stdout;
     this.inp = opts.input ?? process.stdin;
     this.tty = Boolean(this.out.isTTY && this.inp.isTTY);
+    if (this.tty) { this.rows = this.out.rows ?? 24; this.cols = this.out.columns ?? 80; }
   }
+  private started = false;
   setShow(level: "quiet" | "activity" | "full"): void { this.show = level; }
 
   // ---------------- output ----------------
@@ -64,6 +66,7 @@ export class Repl {
     if (isActivity && this.show === "activity" && /thinks:/.test(lines[0] ?? "")) return;
     if (!this.tty) { this.out.write(lines.join("\n") + "\n"); return; }
     const styled = lines.map((l) => this.style(l));
+    if (!this.started) { this.out.write(styled.join("\n") + "\n"); return; }
     const bottom = this.rows - this.footerHeight();
     let s = `${ESC}?25l${ESC}${bottom};1H`;
     for (const l of styled) s += "\n" + l;
@@ -144,6 +147,10 @@ export class Repl {
     this.inp.setRawMode(true); this.inp.resume();
     this.inp.on("keypress", this.keypress);
     this.out.on("resize", this.resize);
+    this.rows = this.out.rows ?? 24; this.cols = this.out.columns ?? 80;
+    // make room for the footer below whatever is on screen, then reserve it
+    this.out.write("\n".repeat(this.footerHeight()));
+    this.started = true;
     this.layout();
   }
   private startPlain(): void {
