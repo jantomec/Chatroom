@@ -190,15 +190,15 @@ class Session {
       command: (line) => this.command(line),
       onQuit: () => this.close(),
     });
-    this.print(`chatroom · conversation "${this.name}" · ${shortPath(project.mainWorktree)} · ${config.names.claude} (Claude) and ${config.names.codex} (Codex) · /help for commands`);
-    const recent = [...this.room.state.messages.values()].slice(-5);
-    for (const m of recent) this.print(`#${m.id} ${config.names[m.from as Agent] ?? m.from} → ${m.to.map((t) => "@" + (config.names[t as Agent] ?? t)).join(" ")}  ${m.at.slice(11, 16)}\n  ${m.body.split("\n")[0]?.slice(0, 120)}`);
-    this.poll = setInterval(() => { void this.pollIpc(); }, 150);
     const onSignal = () => { void this.repl?.quit(); };
     process.once("SIGTERM", onSignal); process.once("SIGHUP", onSignal);
     const onError = (e: unknown) => { this.print(`error: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`); };
     process.on("uncaughtException", onError); process.on("unhandledRejection", onError);
-    this.repl.start();
+    await this.repl.start();
+    this.print(`chatroom · conversation "${this.name}" · ${shortPath(project.mainWorktree)} · ${config.names.claude} (Claude) and ${config.names.codex} (Codex) · /help for commands`);
+    const recent = [...this.room.state.messages.values()].slice(-5);
+    for (const m of recent) this.print(`#${m.id} ${config.names[m.from as Agent] ?? m.from} → ${m.to.map((t) => "@" + (config.names[t as Agent] ?? t)).join(" ")}  ${m.at.slice(11, 16)}  ${m.via ?? ""}\n  ${m.body.split("\n")[0]?.slice(0, 120)}`);
+    this.poll = setInterval(() => { void this.pollIpc(); }, 150);
     await this.room.tick();
     await new Promise<void>((r) => { this.done = r; });
     process.off("SIGTERM", onSignal); process.off("SIGHUP", onSignal); process.off("uncaughtException", onError); process.off("unhandledRejection", onError);

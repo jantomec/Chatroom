@@ -54,6 +54,8 @@ export class Repl {
     if (this.tty) { this.rows = this.out.rows ?? 24; this.cols = this.out.columns ?? 80; }
   }
   private started = false;
+  private contentRow = 1;               // the row the next transcript line goes to (1-based)
+  private cursorReply: ((row: number) => void) | null = null;
   setShow(level: "quiet" | "activity" | "full"): void { this.show = level; }
 
   // ---------------- output ----------------
@@ -65,13 +67,29 @@ export class Repl {
     if (isActivity && this.show === "quiet") return;
     if (isActivity && this.show === "activity" && /thinks:/.test(lines[0] ?? "")) return;
     if (!this.tty) { this.out.write(lines.join("\n") + "\n"); return; }
-    const styled = lines.map((l) => this.style(l));
+    const styled = lines.map((l) => this.style(l)).flatMap((l) => this.wrap(l));
     if (!this.started) { this.out.write(styled.join("\n") + "\n"); return; }
-    const bottom = this.rows - this.footerHeight();
-    let s = `${ESC}?25l${ESC}${bottom};1H`;
-    for (const l of styled) s += "\n" + l;
+    const maxRow = this.rows - this.footerHeight();
+    let s = `${ESC}?25l`;
+    for (const l of styled) {
+      if (this.contentRow > maxRow) s += `${ESC}${maxRow};1H\n${ESC}2K` + l;          // the region scrolls
+      else { s += `${ESC}${this.contentRow};1H${ESC}2K` + l; this.contentRow++; }
+    }
     this.out.write(s);
     this.drawFooter();
+  }
+  /** Split a styled line into rows of at most `cols` visible characters. */
+  private wrap(line: string): string[] {
+    if (visibleLength(line) <= this.cols) return [line];
+    const out: string[] = []; let cur = ""; let n = 0; let i = 0;
+    while (i < line.length) {
+      const m = /^\x1b\[[0-9;]*m/.exec(line.slice(i));
+      if (m) { cur += m[0]; i += m[0].length; continue; }
+      cur += line[i]!; i++; n++;
+      if (n === this.cols) { out.push(cur); cur = ""; n = 0; }
+    }
+    if (cur) out.push(cur);
+    return out;
   }
   private style(line: string): string {
     const names = this.opts.names;
@@ -97,14 +115,17 @@ export class Repl {
   private layout(): void {
     if (!this.tty) return;
     this.rows = this.out.rows ?? 24; this.cols = this.out.columns ?? 80;
-    const bottom = this.rows - this.footerHeight();
-    this.out.write(`${ESC}${1};${bottom}r${ESC}${bottom};1H`);
+    const maxRow = this.rows - this.footerHeight();
+    let s = `${ESC}1;${maxRow}r`;
+    // if the footer would not fit below the content, scroll the content up to make room
+    while (this.contentRow > maxRow + 1) { s += `${ESC}${maxRow};1H\n`; this.contentRow--; }
+    this.out.write(s);
     this.drawFooter();
   }
   redraw(): void { if (this.tty) this.drawFooter(); }
   private drawFooter(): void {
     if (this.closed) return;
-    const h = this.footerHeight(); const top = this.rows - h + 1; const w = this.cols;
+    const h = this.footerHeight(); const top = Math.min(this.contentRow, this.rows - h + 1); const w = this.cols;
     const fit = (s: string) => { const v = visibleLength(s); return v > w ? s.slice(0, Math.max(0, w - 1)) + "…" : s + " ".repeat(w - v); };
     let s = `${ESC}?25l${ESC}${top};1H${ESC}J`;
     s += fit(`${DIM}╭${"─".repeat(Math.max(0, w - 2))}╮${RESET}`) + "\n";
@@ -141,15 +162,20 @@ export class Repl {
 
   // ---------------- input ----------------
 
-  start(): void {
+  async start(): Promise<void> {
     if (!this.tty) { this.startPlain(); return; }
     emitKeypressEvents(this.inp);
     this.inp.setRawMode(true); this.inp.resume();
     this.inp.on("keypress", this.keypress);
     this.out.on("resize", this.resize);
     this.rows = this.out.rows ?? 24; this.cols = this.out.columns ?? 80;
-    // make room for the footer below whatever is on screen, then reserve it
-    this.out.write("\n".repeat(this.footerHeight()));
+    // where is the cursor? the transcript continues from there, like Claude Code's inline screen
+    const row = await new Promise<number>((resolve) => {
+      const t = setTimeout(() => { this.cursorReply = null; resolve(this.rows); }, 400);
+      this.cursorReply = (r) => { clearTimeout(t); this.cursorReply = null; resolve(r); };
+      this.out.write(`${ESC}6n`);
+    });
+    this.contentRow = Math.max(1, Math.min(row, this.rows));
     this.started = true;
     this.layout();
   }
@@ -165,6 +191,8 @@ export class Repl {
   }
   private onKey(str: string | undefined, key: any): void {
     if (this.closed) return;
+    const report = /^\x1b\[(\d+);(\d+)R$/.exec(String(key?.sequence ?? str ?? ""));
+    if (report) { this.cursorReply?.(Number(report[1])); return; }
     const name = key?.name as string | undefined;
     if (key?.ctrl && name === "c") { if (this.text) { this.text = ""; this.cursor = 0; this.layout(); return; } if (Date.now() - this.lastCtrlC < 3000) { void this.quit(); return; } this.lastCtrlC = Date.now(); this.print(`${DIM}press ctrl-c again to quit${RESET}`); return; }
     if (key?.ctrl && name === "d") { if (!this.text) { void this.quit(); } return; }
