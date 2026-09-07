@@ -79,7 +79,8 @@ chatroom                         # opens the conversation "default"
 ```
 
 Inside: plain text goes to both agents, `@clara` or `@phil` to one, `/help` lists the
-commands. `chatroom doctor --live` passed 17 of 17 on 2026-09-07 in a scratch
+commands; a backslash at the end of a line continues it, ctrl-C twice quits. The screen
+is Claude Code's shape: transcript above, input box and status lines pinned below. `chatroom doctor --live` passed 17 of 17 on 2026-09-07 in a scratch
 repository (both agents replied, the mid-turn message reached both, own-worktree writes
 landed, main, the peer worktree and the IPC directory stayed untouched, each agent
 committed on its own branch only, main did not move, and the status bar had model,

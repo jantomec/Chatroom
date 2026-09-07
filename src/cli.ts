@@ -186,7 +186,7 @@ class Session {
     this.ws.refresh();
     this.repl = new Repl({
       room: this.room, names: config.names, statusBar: config.statusBar,
-      bar: () => ({ branch: { claude: this.branchCell("claude"), codex: this.branchCell("codex") }, directory: { claude: this.conv.worktrees.claude, codex: this.conv.worktrees.codex }, mainBranch: this.ctx.repo.mainBranch() ?? "detached", mainPath: project.mainWorktree, integrationAhead: this.ctx.repo.unintegrated(this.conv).integration }),
+      bar: () => ({ branch: { claude: this.branchCell("claude"), codex: this.branchCell("codex") }, directory: { claude: this.conv.worktrees.claude, codex: this.conv.worktrees.codex }, mainBranch: this.ctx.repo.mainBranch() ?? "detached", mainPath: project.mainWorktree, integrationAhead: this.ctx.repo.unintegrated(this.conv).integration, conversation: this.name }),
       command: (line) => this.command(line),
       onQuit: () => this.close(),
     });
@@ -194,20 +194,32 @@ class Session {
     const recent = [...this.room.state.messages.values()].slice(-5);
     for (const m of recent) this.print(`#${m.id} ${config.names[m.from as Agent] ?? m.from} → ${m.to.map((t) => "@" + (config.names[t as Agent] ?? t)).join(" ")}  ${m.at.slice(11, 16)}\n  ${m.body.split("\n")[0]?.slice(0, 120)}`);
     this.poll = setInterval(() => { void this.pollIpc(); }, 150);
+    const onSignal = () => { void this.repl?.quit(); };
+    process.once("SIGTERM", onSignal); process.once("SIGHUP", onSignal);
+    const onError = (e: unknown) => { this.print(`error: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`); };
+    process.on("uncaughtException", onError); process.on("unhandledRejection", onError);
     this.repl.start();
     await this.room.tick();
     await new Promise<void>((r) => { this.done = r; });
+    process.off("SIGTERM", onSignal); process.off("SIGHUP", onSignal); process.off("uncaughtException", onError); process.off("unhandledRejection", onError);
     return this.next;
   }
   private done: (() => void) | null = null;
+  private closing = false;
   private branchCell(a: Agent): string { const h = this.ctx.repo.headRef(this.conv.adminDirs[a]); return h === `refs/heads/${this.conv.branches[a]}` ? this.conv.branches[a].replace(`chatroom/${this.name}/`, "chatroom/…/") : "detached"; }
 
   async close(): Promise<void> {
+    if (this.closing) return; this.closing = true;
+    const dbg = (m: string) => { if (process.env["CHATROOM_DEBUG"]) appendFileSync(process.env["CHATROOM_DEBUG"], `${new Date().toISOString()} close: ${m}\n`); };
+    dbg("begin");
     if (this.poll) clearInterval(this.poll); this.poll = null;
-    for (const a of AGENTS) if (this.room.state.turns[a]) await this.room.stop(a);
-    await this.room.close();
+    try { for (const a of AGENTS) if (this.room.state.turns[a]) await this.room.stop(a); } catch (e) { dbg(`stop failed: ${String(e)}`); }
+    dbg("stopped");
+    try { await this.room.close(); } catch (e) { dbg(`drivers close failed: ${String(e)}`); }
+    dbg("drivers closed");
     this.log.close();
     try { if (readFileSync(this.lockFile, "utf8").trim() === String(process.pid)) rmSync(this.lockFile); } catch { /* ignore */ }
+    dbg("done");
     this.done?.();
   }
 
@@ -220,7 +232,7 @@ class Session {
     const room = this.room; const names = this.ctx.config.names;
     const each = async (arg: string | undefined, f: (a: Agent) => string): Promise<string> => { const a = this.agentArg(arg); if (!a) return `which agent? ${names.claude}, ${names.codex} or all`; const list = a === "all" ? AGENTS : [a]; for (const x of list) if (room.state.turns[x]) return `${names[x]} has a turn in flight; wait or /stop ${names[x]}`; return list.map((x) => `${names[x]}: ${f(x)}`).join("\n"); };
     switch (cmd) {
-      case "help": return `commands: /budget [N] · /status · /stop <agent|all> · /allow <id> · /deny <id> [reason] · /snapshot <agent|all> · /integrate <agent> · /sync <agent|all> · /sync --abort <agent> · /import <src> <dst> · /apply [agent] · /apply --abort · /adopt main|integration · /tasks · /reply <id> <text> · /show quiet|activity|full · /history [N] · /conversations · /new <name> · /switch <name> · /doctor · /quit\nplain text is a message; @${names.claude} @${names.codex} @all address; a line with only """ starts and ends a multi-line message`;
+      case "help": return `commands: /budget [N] · /status · /stop <agent|all> · /allow <id> · /deny <id> [reason] · /snapshot <agent|all> · /integrate <agent> · /sync <agent|all> · /sync --abort <agent> · /import <src> <dst> · /apply [agent] · /apply --abort · /adopt main|integration · /tasks · /reply <id> <text> · /show quiet|activity|full · /history [N] · /conversations · /new <name> · /switch <name> · /doctor · /quit\nplain text is a message; @${names.claude} @${names.codex} @all address; end a line with \\ to continue it on the next; ctrl-c twice quits`;
       case "budget": { if (args[0]) { await room.setBudget(Number(args[0])); } return `budget ${room.state.creditsUsed}/${room.state.limit}`; }
       case "status": return this.statusText();
       case "stop": { const a = this.agentArg(args[0]); if (!a) return "which agent?"; for (const x of a === "all" ? AGENTS : [a]) await room.stop(x); return "stop requested"; }

@@ -958,9 +958,12 @@ does not contain and integration commits that main does not contain, and asks. O
 session per harness per conversation; sessions are isolated from the user's own because
 they live in conversation worktrees and are resumed only by explicit id.
 
-REPL: line-oriented; concurrent output redraws the input line without losing text; plain
-input is a user message; multi-line input is fenced with a line containing only `"""`;
-relayed prompts get short ids and are answered asynchronously.
+The screen is laid out like Claude Code's: the transcript scrolls in the upper part, a
+bordered input box and the status lines stay at the bottom, drawn with a terminal scroll
+region and raw keystrokes, never the alternate screen. Plain input is a user message; a
+backslash at the end of a line continues it on the next; ctrl-C clears the input, or
+quits when pressed twice on an empty box; relayed prompts get short ids and are answered
+asynchronously. Without a terminal, input is read line by line and output is plain text.
 
 ```text
 #42 phil → @clara                                         10:07  post
@@ -1015,9 +1018,8 @@ under the conversation's directory only with `chatroom --raw`.
 
 ### 14.1 Status bar
 
-The lines above the prompt are a status bar: one line per agent and one for the room,
-redrawn in place whenever a value changes, never wrapping, never using the alternate
-screen.
+The lines under the input box are a status bar: one line per agent and one for the room,
+redrawn whenever a value changes, never wrapping.
 
 | Column | Value | Source |
 |---|---|---|

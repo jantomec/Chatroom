@@ -40,6 +40,8 @@ export class CodexDriver implements Driver {
   private async spawnServer(): Promise<void> {
     const child = spawn(this.opts.bin, ["app-server"], { cwd: this.cwd, env: this.opts.env(), stdio: ["pipe", "pipe", "pipe"] });
     this.child = child;
+    const reap = () => { try { child.kill("SIGKILL"); } catch { /* gone */ } };
+    process.once("exit", reap); child.once("exit", () => process.off("exit", reap));
     let stderr = "";
     child.stderr!.on("data", (d: Buffer) => { stderr += d.toString(); if (stderr.length > 8000) stderr = stderr.slice(-8000); });
     createInterface({ input: child.stdout! }).on("line", (line) => this.onLine(line));
@@ -185,6 +187,8 @@ export class CodexDriver implements Driver {
     if (this.opts.model) args.splice(1, 0, "-m", this.opts.model);
     const child = spawn(this.opts.bin, args, { cwd: this.cwd, env: this.opts.env(), stdio: ["pipe", "pipe", "pipe"] });
     this.execChild = child;
+    const reap = () => { try { child.kill("SIGKILL"); } catch { /* gone */ } };
+    process.once("exit", reap); child.once("exit", () => process.off("exit", reap));
     let stderr = "";
     child.stderr!.on("data", (d: Buffer) => { stderr += d.toString(); });
     createInterface({ input: child.stdout! }).on("line", (line) => {
