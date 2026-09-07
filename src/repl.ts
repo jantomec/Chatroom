@@ -113,17 +113,36 @@ export class Repl {
     if (/^(error|warning):/.test(line)) return `${FG["red"]}${line}${RESET}`;
     return line;
   }
-  /** Split a styled line into rows of at most `width` visible characters. */
+  /** Wrap a styled line at word boundaries into rows of at most `width` visible characters;
+   *  continuation rows keep the line's indentation, and colors carry across rows. */
   private wrap(line: string, width: number): string[] {
-    if (visibleLength(line) <= width) return [line];
-    const out: string[] = []; let cur = ""; let n = 0; let i = 0;
+    const items: { ansi: string; ch: string }[] = []; let pending = ""; let i = 0;
     while (i < line.length) {
       const m = /^\x1b\[[0-9;]*m/.exec(line.slice(i));
-      if (m) { cur += m[0]; i += m[0].length; continue; }
-      cur += line[i]!; i++; n++;
-      if (n === width) { out.push(cur); cur = ""; n = 0; }
+      if (m) { pending += m[0]; i += m[0].length; continue; }
+      items.push({ ansi: pending, ch: line[i]! }); pending = ""; i++;
     }
-    if (cur) out.push(cur);
+    const plain = items.map((x) => x.ch).join("");
+    if (plain.length <= width) return [line];
+    const lead = /^\s*/.exec(plain)![0].length + (/^\s*⎿/.test(plain) ? 2 : 0);
+    const indent = " ".repeat(Math.min(lead, Math.max(0, width - 20)));
+    const rows: string[] = []; let start = 0;
+    const render = (a: number, b: number, first: boolean) => (first ? "" : indent + items.slice(0, a).map((x) => x.ansi).join("")) + items.slice(a, b).map((x) => x.ansi + x.ch).join("") + RESET;
+    while (start < plain.length) {
+      const first = rows.length === 0;
+      const avail = first ? width : width - indent.length;
+      if (plain.length - start <= avail) { rows.push(render(start, plain.length, first) + pending); break; }
+      let cut = plain.lastIndexOf(" ", start + avail);
+      cut = cut <= start ? start + avail : cut + 1;
+      rows.push(render(start, cut, first)); start = cut;
+    }
+    return rows;
+  }
+  /** Contiguous slices of a plain line, cut at spaces where possible. */
+  private wrapPlain(text: string, width: number): string[] {
+    const out: string[] = []; let i = 0;
+    while (text.length - i > width) { let cut = text.lastIndexOf(" ", i + width); cut = cut <= i ? i + width : cut + 1; out.push(text.slice(i, cut)); i = cut; }
+    out.push(text.slice(i));
     return out;
   }
 
@@ -134,7 +153,7 @@ export class Repl {
   private inputRows(): { rows: string[]; cursorRow: number; cursorCol: number } {
     const w = this.innerWidth(); const rows: string[] = []; let cursorRow = 0, cursorCol = 0; let pos = 0;
     for (const line of this.text.split("\n")) {
-      const chunks = line.length === 0 ? [""] : line.match(new RegExp(`.{1,${w}}`, "g")) ?? [""];
+      const chunks = this.wrapPlain(line, w);
       for (const [ci, chunk] of chunks.entries()) {
         const start = pos; const end = pos + chunk.length;
         const last = ci === chunks.length - 1;
