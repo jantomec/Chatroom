@@ -102,7 +102,7 @@ class Session {
     const { project, repo, config } = ctx;
     this.lockFile = join(project.stateDir, "lock");
     mkdirSync(project.stateDir, { recursive: true, mode: 0o700 });
-    if (existsSync(this.lockFile)) { const pid = Number(readFileSync(this.lockFile, "utf8").trim()); if (pid && alive(pid)) throw new Error(`another chatroom (pid ${pid}) is running in this project`); }
+    if (existsSync(this.lockFile)) { const pid = Number(readFileSync(this.lockFile, "utf8").trim()); if (pid && alive(pid)) throw new Error(`another chatroom (pid ${pid}) is running in this project; if that terminal is gone, run: kill ${pid}`); }
     writeFileSync(this.lockFile, String(process.pid));
     this.conv = repo.conversation(name);
     this.dir = join(ctx.root, "conversations", name);
@@ -191,8 +191,14 @@ class Session {
       onQuit: () => this.close(),
     });
     const onSignal = () => { void this.repl?.quit(); };
-    process.once("SIGTERM", onSignal); process.once("SIGHUP", onSignal);
-    const onError = (e: unknown) => { this.print(`error: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`); };
+    const onHangup = () => { this.repl?.hangup(); };
+    process.once("SIGTERM", onSignal); process.once("SIGHUP", onHangup);
+    let reporting = false;
+    const onError = (e: unknown) => {
+      if (reporting) return; reporting = true;          // never let an error in the report loop back here
+      try { this.print(`error: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`); } catch { this.repl?.hangup(); }
+      reporting = false;
+    };
     process.on("uncaughtException", onError); process.on("unhandledRejection", onError);
     await this.repl.start();
     this.print(`chatroom · conversation "${this.name}" · ${shortPath(project.mainWorktree)} · ${config.names.claude} (Claude) and ${config.names.codex} (Codex) · /help for commands`);
@@ -201,7 +207,7 @@ class Session {
     this.poll = setInterval(() => { void this.pollIpc(); }, 150);
     await this.room.tick();
     await new Promise<void>((r) => { this.done = r; });
-    process.off("SIGTERM", onSignal); process.off("SIGHUP", onSignal); process.off("uncaughtException", onError); process.off("unhandledRejection", onError);
+    process.off("SIGTERM", onSignal); process.off("SIGHUP", onHangup); process.off("uncaughtException", onError); process.off("unhandledRejection", onError);
     return this.next;
   }
   private done: (() => void) | null = null;

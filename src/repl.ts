@@ -58,6 +58,12 @@ export class Repl {
   private cursorReply: ((row: number) => void) | null = null;
   private lastCtrlC = 0;
   private lastFooterHeight = 0;
+  private dead = false;                 // the terminal went away: write nothing more
+  /** Every write to the terminal goes through here; a failure (EIO, EPIPE) ends the session quietly. */
+  private write(s: string): void {
+    if (this.dead) return;
+    try { this.out.write(s); } catch { this.dead = true; void this.quit(); }
+  }
   private onData = (chunk: Buffer) => this.feed(chunk);
   private resize = () => this.layout();
   private pending = Buffer.alloc(0);
@@ -81,16 +87,16 @@ export class Repl {
     const isActivity = /^\s+·/.test(lines[0] ?? "");
     if (isActivity && this.show === "quiet") return;
     if (isActivity && this.show === "activity" && /thinks:/.test(lines[0] ?? "")) return;
-    if (!this.tty) { this.out.write(lines.join("\n") + "\n"); return; }
+    if (!this.tty) { this.write(lines.join("\n") + "\n"); return; }
     const styled = lines.map((l) => this.style(l)).flatMap((l) => this.wrap(l, this.cols));
-    if (!this.started) { this.out.write(styled.join("\n") + "\n"); return; }
+    if (!this.started) { this.write(styled.join("\n") + "\n"); return; }
     const maxRow = this.rows - this.footerHeight();
     let s = `${ESC}?25l`;
     for (const l of styled) {
       if (this.contentRow > maxRow) s += `${ESC}${maxRow};1H\n${ESC}2K` + l;          // the region scrolls
       else { s += `${ESC}${this.contentRow};1H${ESC}2K` + l; this.contentRow++; }
     }
-    this.out.write(s);
+    this.write(s);
     this.drawFooter();
   }
   private style(line: string): string {
@@ -146,7 +152,7 @@ export class Repl {
     const maxRow = this.rows - this.footerHeight();
     let s = `${ESC}1;${maxRow}r`;
     while (this.contentRow > maxRow + 1) { s += `${ESC}${maxRow};1H\n`; this.contentRow--; }
-    this.out.write(s);
+    this.write(s);
     this.drawFooter();
   }
   redraw(): void { if (this.tty) this.drawFooter(); }
@@ -171,7 +177,7 @@ export class Repl {
     if (this.opts.statusBar) for (const l of this.statusLines()) s += "\n" + fit(l);
     const row = top + 1 + (cursorRow - first); const col = 5 + cursorCol;
     s += `${ESC}${row};${col}H${ESC}?25h`;
-    this.out.write(s);
+    this.write(s);
   }
   statusLines(): string[] {
     const s = this.opts.room.state; const info = this.opts.bar(); const names = this.opts.names;
@@ -201,13 +207,16 @@ export class Repl {
     if (!this.tty) { this.startPlain(); return; }
     this.inp.setRawMode(true); this.inp.resume();
     this.inp.on("data", this.onData);
+    this.inp.on("error", () => { this.dead = true; void this.quit(); });   // the terminal is gone (EIO)
+    this.inp.on("end", () => { void this.quit(); });
+    this.out.on("error", () => { this.dead = true; void this.quit(); });
     this.out.on("resize", this.resize);
-    this.out.write(`${ESC}?2004h`);   // bracketed paste: a pasted block arrives as one unit
+    this.write(`${ESC}?2004h`);   // bracketed paste: a pasted block arrives as one unit
     this.rows = this.out.rows ?? 24; this.cols = this.out.columns ?? 80;
     const row = await new Promise<number>((resolve) => {
       const t = setTimeout(() => { this.cursorReply = null; resolve(this.rows); }, 400);
       this.cursorReply = (r) => { clearTimeout(t); this.cursorReply = null; resolve(r); };
-      this.out.write(`${ESC}6n`);
+      this.write(`${ESC}6n`);
     });
     this.contentRow = Math.max(1, Math.min(row, this.rows));
     this.started = true;
@@ -333,14 +342,17 @@ export class Repl {
     }
     try { await this.opts.room.postUser(text); } catch (e) { this.print(`error: ${e instanceof Error ? e.message : String(e)}`); }
   }
+  /** Quit without writing to the terminal, for a hang-up or a dead descriptor. */
+  hangup(): void { this.dead = true; void this.quit(); }
   async quit(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
+    setTimeout(() => process.exit(1), 8000).unref();   // whatever close() does, the process ends
     if (this.tty) {
       this.inp.off("data", this.onData); this.out.off("resize", this.resize);
       try { this.inp.setRawMode(false); } catch { /* not a tty */ }
-      this.inp.pause();
-      this.out.write(`${ESC}?2004l${ESC}r${ESC}${this.rows};1H${ESC}?25h\n`);
+      try { this.inp.pause(); } catch { /* gone */ }
+      if (!this.dead) this.write(`${ESC}?2004l${ESC}r${ESC}${this.rows};1H${ESC}?25h\n`);
     }
     await this.opts.onQuit();
   }
