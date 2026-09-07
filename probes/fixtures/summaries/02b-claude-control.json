@@ -1,0 +1,74 @@
+{
+  "probe": "02b-claude-control",
+  "finishedAt": "2026-09-07T07:24:23.980Z",
+  "wallMs": 24246,
+  "passed": 1,
+  "failed": 3,
+  "checks": [
+    {
+      "name": "manual mode: a control_request arrived for a non-read-only Bash command",
+      "ok": false
+    },
+    {
+      "name": "allow response let the command run (file exists)",
+      "ok": false
+    },
+    {
+      "name": "deny response: file not created",
+      "ok": true
+    },
+    {
+      "name": "deny reason reached the model",
+      "ok": false
+    }
+  ],
+  "findings": {
+    "permission_denied_system_events": [
+      {
+        "type": "system",
+        "subtype": "permission_denied",
+        "tool_name": "Bash",
+        "tool_use_id": "toolu_01A7SBf6GY3myfayyQa79Cg4",
+        "message": "touch in '/Users/user/.local/state/chatroom-probes/lab02b/runtime/worktrees/c0000001/claude/ctl-allowed.txt' was blocked. For security, Claude Code may only create or modify files in the allowed working directories for this session: '/Users/user/.local/state/chatroom-probes/lab02b/runtime/worktrees/c0000001/claude'.",
+        "uuid": "31492421-72e0-43fc-87de-2a676148a6b4",
+        "session_id": "e2d9ebcc-bd0b-4c81-8550-20531b6757be"
+      },
+      {
+        "type": "system",
+        "subtype": "permission_denied",
+        "tool_name": "Bash",
+        "tool_use_id": "toolu_01KjdogLi2bMyMHogVXbYXLz",
+        "message": "touch in '/Users/user/.local/state/chatroom-probes/lab02b/runtime/worktrees/c0000001/claude/ctl-denied.txt' was blocked. For security, Claude Code may only create or modify files in the allowed working directories for this session: '/Users/user/.local/state/chatroom-probes/lab02b/runtime/worktrees/c0000001/claude'.",
+        "uuid": "9ccb469a-ed87-4c21-b5ef-971c79dfcd11",
+        "session_id": "e2d9ebcc-bd0b-4c81-8550-20531b6757be"
+      }
+    ],
+    "permission_denials_on_result": [
+      {
+        "tool_name": "Bash",
+        "tool_use_id": "toolu_01KjdogLi2bMyMHogVXbYXLz",
+        "tool_input": {
+          "command": "touch ctl-denied.txt && echo created",
+          "description": "Create ctl-denied.txt and echo created"
+        }
+      }
+    ],
+    "tool_result_after_deny": {
+      "type": "tool_result",
+      "content": "touch in '/Users/user/.local/state/chatroom-probes/lab02b/runtime/worktrees/c0000001/claude/ctl-denied.txt' was blocked. For security, Claude Code may only create or modify files in the allowed working directories for this session: '/Users/user/.local/state/chatroom-probes/lab02b/runtime/worktrees/c0000001/claude'.",
+      "is_error": true,
+      "tool_use_id": "toolu_01KjdogLi2bMyMHogVXbYXLz"
+    },
+    "event_types": [
+      "system/init",
+      "rate_limit_event/",
+      "assistant/",
+      "system/permission_denied",
+      "user/",
+      "system/thinking_tokens",
+      "system/hook_started",
+      "system/hook_response",
+      "result/success"
+    ]
+  }
+}

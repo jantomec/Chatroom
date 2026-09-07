@@ -1,0 +1,77 @@
+{
+  "probe": "03e-claude-deny-glob",
+  "finishedAt": "2026-09-07T07:54:02.575Z",
+  "wallMs": 32253,
+  "passed": 2,
+  "failed": 3,
+  "checks": [
+    {
+      "name": "git commit landed on the own branch with the glob-shaped main-tree deny",
+      "ok": false
+    },
+    {
+      "name": "main did not move",
+      "ok": true
+    },
+    {
+      "name": "native Write of a top-level main file refused ([!.]*)",
+      "ok": false
+    },
+    {
+      "name": "native Write into a main subdirectory refused ([!.]*/**)",
+      "ok": false
+    },
+    {
+      "name": "native Write into .chatroom refused (explicit dot entry)",
+      "ok": true
+    }
+  ],
+  "findings": {
+    "settings": {
+      "sandbox": {
+        "enabled": true,
+        "failIfUnavailable": true,
+        "allowUnsandboxedCommands": false,
+        "autoAllowBashIfSandboxed": true,
+        "filesystem": {
+          "denyWrite": [
+            "/Users/user/.local/state/chatroom-probes/lab03e/repo/.git/worktrees/codex",
+            "/Users/user/.local/state/chatroom-probes/lab03e/repo/.git/refs/heads/main",
+            "/Users/user/.local/state/chatroom-probes/lab03e/repo/.git/packed-refs"
+          ]
+        }
+      },
+      "permissions": {
+        "deny": [
+          "Edit(///Users/user/.local/state/chatroom-probes/lab03e/repo/[!.]*)",
+          "Edit(///Users/user/.local/state/chatroom-probes/lab03e/repo/[!.]*/**)",
+          "Edit(///Users/user/.local/state/chatroom-probes/lab03e/repo/.chatroom)",
+          "Edit(///Users/user/.local/state/chatroom-probes/lab03e/repo/.chatroom/**)",
+          "Edit(///Users/user/.local/state/chatroom-probes/lab03e/repo/.gitignore)",
+          "Edit(///Users/user/.local/state/chatroom-probes/lab03e/repo/.gitignore/**)",
+          "Write(///Users/user/.local/state/chatroom-probes/lab03e/repo/[!.]*)",
+          "Write(///Users/user/.local/state/chatroom-probes/lab03e/repo/[!.]*/**)",
+          "Write(///Users/user/.local/state/chatroom-probes/lab03e/repo/.chatroom)",
+          "Write(///Users/user/.local/state/chatroom-probes/lab03e/repo/.chatroom/**)",
+          "Write(///Users/user/.local/state/chatroom-probes/lab03e/repo/.gitignore)",
+          "Write(///Users/user/.local/state/chatroom-probes/lab03e/repo/.gitignore/**)"
+        ]
+      }
+    },
+    "tool_results": [
+      "Exit code 128\nfatal: Unable to create '/Users/user/.local/state/chatroom-probes/lab03e/repo/.git/worktrees/claude/index.lock': Operation not permitted",
+      "File created successfully at: /Users/user/.local/state/chatroom-probes/lab03e/repo/native-top.txt (file state is current in your context — no need to Read i",
+      "File created successfully at: /Users/user/.local/state/chatroom-probes/lab03e/repo/src/native-nested.txt (file state is current in your context — no need to",
+      "<tool_use_error>File is in a directory that is denied by your permission settings.</tool_use_error>",
+      "<tool_use_error>File is in a directory that is denied by your permission settings.</tool_use_error>",
+      "<tool_use_error>File is in a directory that is denied by your permission settings.</tool_use_error>"
+    ],
+    "reply": "Results, one line per attempt:\n\n- **Bash** (echo, add, commit, rev-parse): exit 128. `fatal: Unable to create '/Users/user/.local/state/chatroom-probes/lab03e/repo/.git/worktrees/claude/index.lock': Operation not permitted`\n- **Write 1** repo/native-top.txt: ok\n- **Write 2** repo/src/native-nested.txt: ok\n- **Write 3** repo/.chatroom/native-authority.txt: refused. `File is in a directory that is denied by your permission settings.`\n- **Write 4** repo/.newdot/native-dot.txt: refused. `File is in a directory that is denied by your permission settings.`\n- **Write 5** repo/.git/native-git.txt: refused. `File is in a directory that is denied by your permission settings.`\n\nNotes on what I did ",
+    "residual_gap_new_dot_directory": {
+      "written": false
+    },
+    "native_write_into_git_dir": {
+      "written": false
+    }
+  }
+}

@@ -1,0 +1,7 @@
+[
+  {
+    "command": "/bin/zsh -lc 'git add note.txt && git commit -q -m probe && git rev-parse HEAD'",
+    "exit_code": 0,
+    "output": "error: Unable to create '/Users/user/.local/state/chatroom-probes/lab05/repo/.git/packed-refs.lock': Operation not permitted\n5f81a082da701ca81f6e2b5729796ba4e8a97f7b\n"
+  }
+]

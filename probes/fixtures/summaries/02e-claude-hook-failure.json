@@ -1,0 +1,80 @@
+{
+  "probe": "02e-claude-hook-failure",
+  "finishedAt": "2026-09-07T07:48:59.407Z",
+  "wallMs": 13878,
+  "passed": 3,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "PostToolUseFailure fired for the failing Bash call",
+      "ok": true
+    },
+    {
+      "name": "PostToolUse did not fire for the failing call",
+      "ok": true
+    },
+    {
+      "name": "the delivery reached the model through PostToolUseFailure's additionalContext",
+      "ok": true
+    }
+  ],
+  "findings": {
+    "hook_lifecycle_events": [
+      {
+        "subtype": "hook_started",
+        "hook_name": "PostToolUseFailure:Bash",
+        "hook_event": "PostToolUseFailure"
+      },
+      {
+        "subtype": "hook_response",
+        "hook_name": "PostToolUseFailure:Bash",
+        "hook_event": "PostToolUseFailure",
+        "output": "{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUseFailure\",\"additionalContext\":\"[chatroom] You are @clara. 1 new message.\\n\\n--- #9 · user → @clara · 10:07:12\\nThe secret word is QUINCE.\\n\"}}",
+        "exit_code": 0,
+        "outcome": "success"
+      },
+      {
+        "subtype": "hook_started",
+        "hook_name": "Stop",
+        "hook_event": "Stop"
+      },
+      {
+        "subtype": "hook_response",
+        "hook_name": "Stop",
+        "hook_event": "Stop",
+        "output": "",
+        "exit_code": 0,
+        "outcome": "success"
+      }
+    ],
+    "hook_inputs": [
+      {
+        "event": "PostToolUseFailure",
+        "tool": "Bash",
+        "keys": [
+          "session_id",
+          "transcript_path",
+          "cwd",
+          "prompt_id",
+          "permission_mode",
+          "effort",
+          "hook_event_name",
+          "tool_name",
+          "tool_input",
+          "tool_use_id",
+          "error",
+          "is_interrupt",
+          "duration_ms"
+        ],
+        "error": "Exit code 1\ncat: /nonexistent-probe-file: No such file or directory",
+        "is_interrupt": false
+      }
+    ],
+    "tool_result": {
+      "type": "tool_result",
+      "content": "Exit code 1\ncat: /nonexistent-probe-file: No such file or directory",
+      "is_error": true,
+      "tool_use_id": "toolu_01AB3fLVhguWSNdNHv4Q6eEu"
+    }
+  }
+}

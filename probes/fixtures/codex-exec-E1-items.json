@@ -1,0 +1,15 @@
+[
+  {
+    "id": "item_0",
+    "type": "command_execution",
+    "command": "/bin/zsh -lc 'echo \"$CHATROOM_AGENT|$CHATROOM_PROBE_SET|$MY_FAKE_TOKEN|$MY_FAKE_SECRET|$TMPDIR\"'",
+    "aggregated_output": "codex|via-c-set|token-should-be-stripped|secret-should-be-stripped|/Users/user/.local/state/chatroom-probes/lab05/runtime/ipc/codex/scratch/turn0001-n0nce\n",
+    "exit_code": 0,
+    "status": "completed"
+  },
+  {
+    "id": "item_1",
+    "type": "agent_message",
+    "text": "codex|via-c-set|token-should-be-stripped|secret-should-be-stripped|/Users/user/.local/state/chatroom-probes/lab05/runtime/ipc/codex/scratch/turn0001-n0nce"
+  }
+]

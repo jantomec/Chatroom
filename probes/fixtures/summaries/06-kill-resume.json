@@ -1,0 +1,107 @@
+{
+  "probe": "06-kill-resume",
+  "finishedAt": "2026-09-07T07:33:26.166Z",
+  "wallMs": 71622,
+  "passed": 6,
+  "failed": 1,
+  "checks": [
+    {
+      "name": "codex: a 25 s command completes and its output reaches the model (no hard tool timeout below 25 s)",
+      "ok": true
+    },
+    {
+      "name": "codex: thread/resume after SIGKILL returns the thread; the interrupted turn is visible",
+      "ok": true
+    },
+    {
+      "name": "codex: interrupted turn is not reported as completed",
+      "ok": true
+    },
+    {
+      "name": "codex: recovery turn completes on the resumed thread",
+      "ok": true
+    },
+    {
+      "name": "claude: a 130 s Bash command hits the tool timeout (documented 120 s default)",
+      "ok": false
+    },
+    {
+      "name": "claude: --resume after SIGKILL keeps the session id and completes a recovery turn",
+      "ok": true
+    },
+    {
+      "name": "claude: the resumed session recalls the interrupted command",
+      "ok": true
+    }
+  ],
+  "findings": {
+    "codex_long_command_items": [
+      {
+        "command": "/bin/zsh -lc 'sleep 25 && echo finished-25'",
+        "exitCode": 0,
+        "durationMs": 24877,
+        "status": "completed",
+        "output": "finished-25\n"
+      }
+    ],
+    "codex_long_command_final": "finished-25",
+    "codex_killed": {
+      "exit": {
+        "code": null,
+        "signal": "SIGKILL"
+      },
+      "turnId": "01a07ac8-b087-7ca2-80d3-42e1bc0e2236"
+    },
+    "codex_resume_after_kill": {
+      "ms": 148,
+      "status": {
+        "type": "idle"
+      },
+      "turns": 2,
+      "lastTurn": {
+        "id": "01a07ac8-b087-7ca2-80d3-42e1bc0e2236",
+        "status": "interrupted",
+        "items": [
+          "userMessage",
+          "reasoning",
+          "commandExecution"
+        ]
+      }
+    },
+    "codex_recovery_turn": {
+      "status": "completed",
+      "final": "I ran `sleep 20 && echo done-20`; it was aborted after 2.2 seconds, so I did not see its output."
+    },
+    "claude_long_command": {
+      "wallMs": 11702,
+      "result": "Blocked: sleep 130 followed by: echo finished-130. To wait for a condition, use Monitor with an until-loop (e.g. `until <check>; do sleep 2; done`). To wait for a command you started, use run_in_background: true. Do not chain shorter sleeps to work around this block.",
+      "toolResult": {
+        "type": "tool_result",
+        "content": "<tool_use_error>Blocked: sleep 130 followed by: echo finished-130. To wait for a condition, use Monitor with an until-loop (e.g. `until <check>; do sleep 2; done`). To wait for a command you started, use run_in_background: true. Do not chain shorter sleeps to work around this block.</tool_use_error>",
+        "is_error": true,
+        "tool_use_id": "toolu_01JN5VkPQ8ii9kW8UousLJ68"
+      },
+      "toolUse": [
+        {
+          "command": "sleep 130 && echo finished-130",
+          "description": "Sleep 130 seconds then print marker"
+        }
+      ]
+    },
+    "claude_killed": {
+      "code": null,
+      "signal": "SIGKILL"
+    },
+    "claude_resume_after_kill": {
+      "ms": 9913,
+      "session_id": "e71986e2-0d0b-46af-abba-a5a6e2177cbb",
+      "result": "The last command I actually ran was `sleep 130 && echo finished-130`, which the tool blocked before executing; I never issued the `sleep 20 && echo done-20` call, so I saw no output for it.",
+      "firstEvents": [
+        "system/init",
+        "system/thinking_tokens",
+        "system/thinking_tokens",
+        "system/thinking_tokens"
+      ]
+    }
+  }
+}

@@ -1,0 +1,907 @@
+{
+  "probe": "02-claude-session",
+  "finishedAt": "2026-09-07T07:19:21.790Z",
+  "wallMs": 48253,
+  "passed": 23,
+  "failed": 3,
+  "checks": [
+    {
+      "name": "login check: claude.ai login, first-party provider, no API key",
+      "ok": true
+    },
+    {
+      "name": "init event carries session_id equal to --session-id",
+      "ok": true
+    },
+    {
+      "name": "init event cwd equals the worktree",
+      "ok": true
+    },
+    {
+      "name": "init event has model and permissionMode auto",
+      "ok": true
+    },
+    {
+      "name": "init event omits effort",
+      "ok": true
+    },
+    {
+      "name": "turn A1 answered READY",
+      "ok": true
+    },
+    {
+      "name": "assistant event carries message.usage with the three input fields",
+      "ok": true
+    },
+    {
+      "name": "assistant event carries message.model",
+      "ok": true
+    },
+    {
+      "name": "result carries modelUsage[<model>].contextWindow",
+      "ok": true
+    },
+    {
+      "name": "model in modelUsage matches init model",
+      "ok": false
+    },
+    {
+      "name": "turn A2: the hook's additionalContext reached the model (secret word answered)",
+      "ok": true
+    },
+    {
+      "name": "PostToolUse hook fired from inline --settings",
+      "ok": true
+    },
+    {
+      "name": "hook input carries cwd equal to the worktree",
+      "ok": true
+    },
+    {
+      "name": "hook input carries effort.level with --effort unset",
+      "ok": true
+    },
+    {
+      "name": "delivery consumed and delivery_ack written to the drop root",
+      "ok": true
+    },
+    {
+      "name": "--include-hook-events emits hook lifecycle events",
+      "ok": true
+    },
+    {
+      "name": "turn A3: process remembers turn A1",
+      "ok": true
+    },
+    {
+      "name": "closing stdin ends the long-lived process",
+      "ok": true
+    },
+    {
+      "name": "resumed session reports the same session_id",
+      "ok": true
+    },
+    {
+      "name": "resumed session reports the worktree cwd",
+      "ok": true
+    },
+    {
+      "name": "turn B1: resumed session remembers the hook delivery from session A",
+      "ok": true
+    },
+    {
+      "name": "hook input effort.level is 'low' with --effort low",
+      "ok": true
+    },
+    {
+      "name": "resumed process exits on stdin close",
+      "ok": true
+    },
+    {
+      "name": "manual mode: a control_request arrived on stdout for Bash",
+      "ok": false
+    },
+    {
+      "name": "control_response allow let the command run",
+      "ok": true
+    },
+    {
+      "name": "control_response deny reached the model",
+      "ok": false
+    }
+  ],
+  "findings": {
+    "claude_version": "2.1.263 (Claude Code)",
+    "auth_status": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty",
+      "analyticsDisabled": false,
+      "projectsDirectory": "/Users/user/.claude/projects",
+      "email": "user@example.invalid",
+      "orgId": "f9a55304-8c9e-4650-8b6c-7c197fa59f21",
+      "orgName": "user@example.invalid's Organization",
+      "subscriptionType": "max"
+    },
+    "lab": {
+      "main": "/Users/user/.local/state/chatroom-probes/lab02/repo",
+      "claudeWorktree": "/Users/user/.local/state/chatroom-probes/lab02/runtime/worktrees/c0000001/claude",
+      "commonDir": "/Users/user/.local/state/chatroom-probes/lab02/repo/.git"
+    },
+    "init_event": {
+      "type": "system",
+      "subtype": "init",
+      "cwd": "/Users/user/.local/state/chatroom-probes/lab02/runtime/worktrees/c0000001/claude",
+      "session_id": "70568e23-f187-4841-898b-31d4cc98842a",
+      "tools": [
+        "Task",
+        "Bash",
+        "CronCreate",
+        "CronDelete",
+        "CronList",
+        "DesignSync",
+        "Edit",
+        "EnterWorktree",
+        "ExitWorktree",
+        "ListAgents",
+        "LSP",
+        "Monitor",
+        "NotebookEdit",
+        "PushNotification",
+        "Read",
+        "RemoteTrigger",
+        "ReportFindings",
+        "ScheduleWakeup",
+        "SendMessage",
+        "Skill",
+        "TaskOutput",
+        "TaskStop",
+        "ToolSearch",
+        "WebFetch",
+        "WebSearch",
+        "Workflow",
+        "Write"
+      ],
+      "mcp_servers": [],
+      "model": "claude-fable-5-1",
+      "permissionMode": "auto",
+      "slash_commands": [],
+      "terminal_slash_commands": [],
+      "apiKeySource": "none",
+      "claude_code_version": "2.1.263",
+      "output_style": "default",
+      "agents": [],
+      "skills": [],
+      "plugins": [],
+      "capabilities": [
+        "interrupt_receipt_v1",
+        "interrupt_cancel_queued_v1",
+        "msg_lifecycle_v1"
+      ],
+      "analytics_disabled": false,
+      "product_feedback_disabled": false,
+      "uuid": "677ddeff-4229-4234-9b69-55dc1472a296",
+      "memory_paths": {},
+      "messaging_socket_path": "/tmp/cc-socks/24508.sock",
+      "fast_mode_state": "off",
+      "fast_mode_disabled_reason": "sdk_opt_in_required"
+    },
+    "assistant_message_model_and_usage": {
+      "model": "claude-fable-5-1",
+      "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 8828,
+        "cache_read_input_tokens": 10016,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 8828
+        },
+        "output_tokens": 1,
+        "service_tier": "standard",
+        "inference_geo": "not_available"
+      }
+    },
+    "result_event_A1": {
+      "duration_api_ms": 3546,
+      "stop_reason": "end_turn",
+      "session_id": "70568e23-f187-4841-898b-31d4cc98842a",
+      "total_cost_usd": 0.18022900000000003,
+      "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 8828,
+        "cache_read_input_tokens": 10016,
+        "output_tokens": 4,
+        "output_tokens_details": {
+          "thinking_tokens": 0
+        },
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 8828,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 2,
+            "output_tokens": 4,
+            "cache_read_input_tokens": 10016,
+            "cache_creation_input_tokens": 8828,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 8828
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard"
+      },
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 900,
+          "outputTokens": 9,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000945,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-fable-5-1": {
+          "inputTokens": 2,
+          "outputTokens": 4,
+          "cacheReadInputTokens": 10016,
+          "cacheCreationInputTokens": 8828,
+          "webSearchRequests": 0,
+          "costUSD": 0.17928400000000003,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-fable-5-1",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "permission_denials": [],
+      "terminal_reason": "completed",
+      "fast_mode_state": "off",
+      "fast_mode_disabled_reason": "sdk_opt_in_required",
+      "subagent_stats": {
+        "spawned": 0,
+        "requested": {
+          "background": 0,
+          "foreground": 0,
+          "unset": 0
+        },
+        "started_in_background": 0,
+        "max_depth": 0,
+        "spawned_by_subagents": 0,
+        "completed": 0,
+        "failed": 0,
+        "killed": {
+          "parent": 0,
+          "user": 0,
+          "system": 0
+        },
+        "refused": {
+          "depth_limit": 0,
+          "concurrency_limit": 0,
+          "budget": 0
+        },
+        "by_type": {}
+      },
+      "is_error": false,
+      "num_turns": 1,
+      "subtype": "success",
+      "api_error_status": null,
+      "result": "READY",
+      "ttft_ms": 2674,
+      "type": "result",
+      "duration_ms": 5376,
+      "uuid": "e17b2f75-f48d-426c-a9a4-cce408cae0ae",
+      "ttft_stream_ms": 1770,
+      "time_to_request_ms": 22,
+      "first_content_frame_ms": 1771,
+      "queued_turn_count": 0
+    },
+    "hook_input_PostToolUse_sample": {
+      "at": "2026-09-07T07:18:44.568Z",
+      "argv": [
+        "hook"
+      ],
+      "env": {
+        "CHATROOM_AGENT": "claude",
+        "CHATROOM_TURN": "turn0001",
+        "CLAUDE_EFFORT": "xhigh",
+        "CLAUDE_PROJECT_DIR": "/Users/user/.local/state/chatroom-probes/lab02/runtime/worktrees/c0000001/claude",
+        "cwd": "/Users/user/.local/state/chatroom-probes/lab02/runtime/worktrees/c0000001/claude"
+      },
+      "input": {
+        "session_id": "70568e23-f187-4841-898b-31d4cc98842a",
+        "transcript_path": "/Users/user/.claude/projects/-Users-user--local-state-chatroom-probes-lab02-runtime-worktrees-c0000001-claude/70568e23-f187-4841-898b-31d4cc98842a.jsonl",
+        "cwd": "/Users/user/.local/state/chatroom-probes/lab02/runtime/worktrees/c0000001/claude",
+        "prompt_id": "1e773c81-891c-434e-b3d5-16170a83b030",
+        "permission_mode": "auto",
+        "effort": {
+          "level": "xhigh"
+        },
+        "hook_event_name": "PostToolUse",
+        "tool_name": "Bash",
+        "tool_input": {
+          "command": "echo hello",
+          "description": "Print hello"
+        },
+        "tool_response": {
+          "stdout": "hello",
+          "stderr": "",
+          "interrupted": false,
+          "isImage": false,
+          "noOutputExpected": false
+        },
+        "tool_use_id": "toolu_01SWHiuhFQYDa32BrxhSYgnm",
+        "duration_ms": 372
+      }
+    },
+    "hook_effort_level_with_effort_unset": [
+      {
+        "level": "xhigh"
+      }
+    ],
+    "hook_env_seen": {
+      "CHATROOM_AGENT": "claude",
+      "CHATROOM_TURN": "turn0001",
+      "CLAUDE_EFFORT": "xhigh",
+      "CLAUDE_PROJECT_DIR": "/Users/user/.local/state/chatroom-probes/lab02/runtime/worktrees/c0000001/claude",
+      "cwd": "/Users/user/.local/state/chatroom-probes/lab02/runtime/worktrees/c0000001/claude"
+    },
+    "hook_lifecycle_event_types": [
+      "system/hook_started",
+      "system/hook_response"
+    ],
+    "hook_lifecycle_event_samples": [
+      {
+        "type": "system",
+        "subtype": "hook_started",
+        "hook_id": "9e42d5e7-e3ba-4307-9354-2a742210003d",
+        "hook_name": "Stop",
+        "hook_event": "Stop",
+        "uuid": "eaac61e3-334e-4fc2-98c0-84633e7fa430",
+        "session_id": "70568e23-f187-4841-898b-31d4cc98842a"
+      },
+      {
+        "type": "system",
+        "subtype": "hook_response",
+        "hook_id": "9e42d5e7-e3ba-4307-9354-2a742210003d",
+        "hook_name": "Stop",
+        "hook_event": "Stop",
+        "output": "",
+        "stdout": "",
+        "stderr": "",
+        "exit_code": 0,
+        "outcome": "success",
+        "uuid": "762a0e96-9c9f-43ce-b276-8854029f036a",
+        "session_id": "70568e23-f187-4841-898b-31d4cc98842a"
+      },
+      {
+        "type": "system",
+        "subtype": "hook_started",
+        "hook_id": "909c0e81-06e0-41e6-b514-2fb32fa74a0a",
+        "hook_name": "PostToolUse:Bash",
+        "hook_event": "PostToolUse",
+        "uuid": "c0ee7502-2300-478d-83b3-d64a5b4ccb7c",
+        "session_id": "70568e23-f187-4841-898b-31d4cc98842a"
+      },
+      {
+        "type": "system",
+        "subtype": "hook_response",
+        "hook_id": "909c0e81-06e0-41e6-b514-2fb32fa74a0a",
+        "hook_name": "PostToolUse:Bash",
+        "hook_event": "PostToolUse",
+        "output": "{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"[chatroom] You are @clara. 1 new message.\\n\\n--- #7 · user → @clara · 10:07:12\\nThe secret word is PLUM.\\n\"}}",
+        "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"[chatroom] You are @clara. 1 new message.\\n\\n--- #7 · user → @clara · 10:07:12\\nThe secret word is PLUM.\\n\"}}",
+        "stderr": "",
+        "exit_code": 0,
+        "outcome": "success",
+        "uuid": "524226bb-a4cc-4e85-b678-00f7c96fd921",
+        "session_id": "70568e23-f187-4841-898b-31d4cc98842a"
+      }
+    ],
+    "tool_use_blocks": [
+      {
+        "name": "Bash",
+        "input": {
+          "command": "echo hello",
+          "description": "Print hello"
+        }
+      }
+    ],
+    "tool_result_sample": {
+      "tool_use_id": "toolu_01SWHiuhFQYDa32BrxhSYgnm",
+      "type": "tool_result",
+      "content": "hello",
+      "is_error": false
+    },
+    "thinking_blocks": {
+      "count": 0,
+      "sample": null
+    },
+    "result_usage_cumulative": [
+      {
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 8828,
+          "cache_read_input_tokens": 10016,
+          "output_tokens": 4,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 8828,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "not_available",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 4,
+              "cache_read_input_tokens": 10016,
+              "cache_creation_input_tokens": 8828,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 8828
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard"
+        },
+        "modelUsage": {
+          "claude-haiku-4-5-20251001": {
+            "inputTokens": 900,
+            "outputTokens": 9,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0,
+            "webSearchRequests": 0,
+            "costUSD": 0.000945,
+            "contextWindow": 200000,
+            "maxOutputTokens": 32000,
+            "thinkingTokens": 0,
+            "canonicalModel": "claude-haiku-4-5",
+            "provider": "firstParty",
+            "costBasis": "list"
+          },
+          "claude-fable-5-1": {
+            "inputTokens": 2,
+            "outputTokens": 4,
+            "cacheReadInputTokens": 10016,
+            "cacheCreationInputTokens": 8828,
+            "webSearchRequests": 0,
+            "costUSD": 0.17928400000000003,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 64000,
+            "thinkingTokens": 0,
+            "canonicalModel": "claude-fable-5-1",
+            "provider": "firstParty",
+            "costBasis": "list"
+          }
+        },
+        "total_cost_usd": 0.18022900000000003,
+        "num_turns": 1,
+        "duration_ms": 5376
+      },
+      {
+        "usage": {
+          "input_tokens": 34,
+          "cache_creation_input_tokens": 5438,
+          "cache_read_input_tokens": 32580,
+          "output_tokens": 80,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 5438,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "not_available",
+          "iterations": [
+            {
+              "input_tokens": 32,
+              "output_tokens": 6,
+              "cache_read_input_tokens": 18924,
+              "cache_creation_input_tokens": 170,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 170
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard"
+        },
+        "modelUsage": {
+          "claude-haiku-4-5-20251001": {
+            "inputTokens": 900,
+            "outputTokens": 9,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0,
+            "webSearchRequests": 0,
+            "costUSD": 0.000945,
+            "contextWindow": 200000,
+            "maxOutputTokens": 32000,
+            "thinkingTokens": 0,
+            "canonicalModel": "claude-haiku-4-5",
+            "provider": "firstParty",
+            "costBasis": "list"
+          },
+          "claude-fable-5-1": {
+            "inputTokens": 36,
+            "outputTokens": 84,
+            "cacheReadInputTokens": 42596,
+            "cacheCreationInputTokens": 14266,
+            "webSearchRequests": 0,
+            "costUSD": 0.30052900000000005,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 64000,
+            "thinkingTokens": 0,
+            "canonicalModel": "claude-fable-5-1",
+            "provider": "firstParty",
+            "costBasis": "list"
+          }
+        },
+        "total_cost_usd": 0.3014740000000001,
+        "num_turns": 2,
+        "duration_ms": 9758
+      },
+      {
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 62,
+          "cache_read_input_tokens": 19094,
+          "output_tokens": 4,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 62,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "not_available",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 4,
+              "cache_read_input_tokens": 19094,
+              "cache_creation_input_tokens": 62,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 62
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard"
+        },
+        "modelUsage": {
+          "claude-haiku-4-5-20251001": {
+            "inputTokens": 900,
+            "outputTokens": 9,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0,
+            "webSearchRequests": 0,
+            "costUSD": 0.000945,
+            "contextWindow": 200000,
+            "maxOutputTokens": 32000,
+            "thinkingTokens": 0,
+            "canonicalModel": "claude-haiku-4-5",
+            "provider": "firstParty",
+            "costBasis": "list"
+          },
+          "claude-fable-5-1": {
+            "inputTokens": 38,
+            "outputTokens": 88,
+            "cacheReadInputTokens": 61690,
+            "cacheCreationInputTokens": 14328,
+            "webSearchRequests": 0,
+            "costUSD": 0.30676250000000005,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 64000,
+            "thinkingTokens": 0,
+            "canonicalModel": "claude-fable-5-1",
+            "provider": "firstParty",
+            "costBasis": "list"
+          }
+        },
+        "total_cost_usd": 0.3077075000000001,
+        "num_turns": 1,
+        "duration_ms": 5048
+      }
+    ],
+    "session_A_wall_ms": 21149,
+    "init_event_resumed": {
+      "type": "system",
+      "subtype": "init",
+      "cwd": "/Users/user/.local/state/chatroom-probes/lab02/runtime/worktrees/c0000001/claude",
+      "session_id": "70568e23-f187-4841-898b-31d4cc98842a",
+      "tools": [
+        "Task",
+        "Bash",
+        "CronCreate",
+        "CronDelete",
+        "CronList",
+        "DesignSync",
+        "Edit",
+        "EnterWorktree",
+        "ExitWorktree",
+        "ListAgents",
+        "LSP",
+        "Monitor",
+        "NotebookEdit",
+        "PushNotification",
+        "Read",
+        "RemoteTrigger",
+        "ReportFindings",
+        "ScheduleWakeup",
+        "SendMessage",
+        "Skill",
+        "TaskOutput",
+        "TaskStop",
+        "ToolSearch",
+        "WebFetch",
+        "WebSearch",
+        "Workflow",
+        "Write"
+      ],
+      "mcp_servers": [],
+      "model": "claude-fable-5-1",
+      "permissionMode": "auto",
+      "slash_commands": [],
+      "terminal_slash_commands": [],
+      "apiKeySource": "none",
+      "claude_code_version": "2.1.263",
+      "output_style": "default",
+      "agents": [],
+      "skills": [],
+      "plugins": [],
+      "capabilities": [
+        "interrupt_receipt_v1",
+        "interrupt_cancel_queued_v1",
+        "msg_lifecycle_v1"
+      ],
+      "analytics_disabled": false,
+      "product_feedback_disabled": false,
+      "uuid": "acab3b94-baa8-48e1-848c-7f6ae1b33157",
+      "memory_paths": {},
+      "messaging_socket_path": "/tmp/cc-socks/24801.sock",
+      "fast_mode_state": "off",
+      "fast_mode_disabled_reason": "sdk_opt_in_required"
+    },
+    "resumed_result": {
+      "duration_api_ms": 4982,
+      "stop_reason": "end_turn",
+      "session_id": "70568e23-f187-4841-898b-31d4cc98842a",
+      "total_cost_usd": 0.1260625,
+      "usage": {
+        "input_tokens": 34,
+        "cache_creation_input_tokens": 5680,
+        "cache_read_input_tokens": 32890,
+        "output_tokens": 78,
+        "output_tokens_details": {
+          "thinking_tokens": 0
+        },
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 5680,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 32,
+            "output_tokens": 6,
+            "cache_read_input_tokens": 19234,
+            "cache_creation_input_tokens": 102,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 102
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard"
+      },
+      "modelUsage": {
+        "claude-fable-5-1": {
+          "inputTokens": 34,
+          "outputTokens": 78,
+          "cacheReadInputTokens": 32890,
+          "cacheCreationInputTokens": 5680,
+          "webSearchRequests": 0,
+          "costUSD": 0.1260625,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-fable-5-1",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "permission_denials": [],
+      "terminal_reason": "completed",
+      "fast_mode_state": "off",
+      "fast_mode_disabled_reason": "sdk_opt_in_required",
+      "subagent_stats": {
+        "spawned": 0,
+        "requested": {
+          "background": 0,
+          "foreground": 0,
+          "unset": 0
+        },
+        "started_in_background": 0,
+        "max_depth": 0,
+        "spawned_by_subagents": 0,
+        "completed": 0,
+        "failed": 0,
+        "killed": {
+          "parent": 0,
+          "user": 0,
+          "system": 0
+        },
+        "refused": {
+          "depth_limit": 0,
+          "concurrency_limit": 0,
+          "budget": 0
+        },
+        "by_type": {}
+      },
+      "is_error": false,
+      "num_turns": 2,
+      "subtype": "success",
+      "api_error_status": null,
+      "result": "PLUM",
+      "ttft_ms": 3069,
+      "type": "result",
+      "duration_ms": 8112,
+      "uuid": "1c124fe9-26ba-4125-b057-0180ec05d08c",
+      "ttft_stream_ms": 1938,
+      "time_to_request_ms": 36,
+      "first_content_frame_ms": 1939,
+      "queued_turn_count": 0
+    },
+    "permission_denials_on_result": [],
+    "event_shapes_seen": {
+      "system/init": [
+        "type",
+        "subtype",
+        "cwd",
+        "session_id",
+        "tools",
+        "mcp_servers",
+        "model",
+        "permissionMode",
+        "slash_commands",
+        "terminal_slash_commands",
+        "apiKeySource",
+        "claude_code_version",
+        "output_style",
+        "agents",
+        "skills",
+        "plugins",
+        "capabilities",
+        "analytics_disabled",
+        "product_feedback_disabled",
+        "uuid",
+        "memory_paths",
+        "messaging_socket_path",
+        "fast_mode_state",
+        "fast_mode_disabled_reason"
+      ],
+      "rate_limit_event": [
+        "type",
+        "rate_limit_info",
+        "uuid",
+        "session_id"
+      ],
+      "assistant": [
+        "type",
+        "message",
+        "parent_tool_use_id",
+        "session_id",
+        "uuid",
+        "timestamp",
+        "request_id"
+      ],
+      "system/hook_started": [
+        "type",
+        "subtype",
+        "hook_id",
+        "hook_name",
+        "hook_event",
+        "uuid",
+        "session_id"
+      ],
+      "system/hook_response": [
+        "type",
+        "subtype",
+        "hook_id",
+        "hook_name",
+        "hook_event",
+        "output",
+        "stdout",
+        "stderr",
+        "exit_code",
+        "outcome",
+        "uuid",
+        "session_id"
+      ],
+      "result/success": [
+        "duration_api_ms",
+        "stop_reason",
+        "session_id",
+        "total_cost_usd",
+        "usage",
+        "modelUsage",
+        "permission_denials",
+        "terminal_reason",
+        "fast_mode_state",
+        "fast_mode_disabled_reason",
+        "subagent_stats",
+        "is_error",
+        "num_turns",
+        "subtype",
+        "api_error_status",
+        "result",
+        "ttft_ms",
+        "type",
+        "duration_ms",
+        "uuid",
+        "ttft_stream_ms",
+        "time_to_request_ms",
+        "first_content_frame_ms",
+        "queued_turn_count"
+      ],
+      "user": [
+        "type",
+        "message",
+        "parent_tool_use_id",
+        "session_id",
+        "uuid",
+        "timestamp",
+        "tool_use_result"
+      ],
+      "system/thinking_tokens": [
+        "type",
+        "subtype",
+        "estimated_tokens",
+        "estimated_tokens_delta",
+        "session_id",
+        "uuid"
+      ]
+    }
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "autoAllowBashIfSandboxed": true,
+    "filesystem": {
+      "allowWrite": [
+        "/Users/user/.local/state/chatroom-probes/lab03f/runtime/ipc/claude/from-agent/turn0001-n0nce",
+        "/Users/user/.local/state/chatroom-probes/lab03f/runtime/ipc/claude/scratch/turn0001-n0nce"
+      ],
+      "denyWrite": [
+        "/Users/user/.local/state/chatroom-probes/lab03f/repo/.git/worktrees/codex",
+        "/Users/user/.local/state/chatroom-probes/lab03f/repo/.git/worktrees/c0000001",
+        "/Users/user/.local/state/chatroom-probes/lab03f/repo/.git/refs/heads/main",
+        "/Users/user/.local/state/chatroom-probes/lab03f/repo/.git/refs/heads/chatroom/p0000001/c0000001/codex",
+        "/Users/user/.local/state/chatroom-probes/lab03f/repo/.git/refs/heads/chatroom/p0000001/c0000001/integration",
+        "/Users/user/.local/state/chatroom-probes/lab03f/repo/.git/packed-refs"
+      ],
+      "denyRead": [
+        "/Users/user/.local/state/chatroom-probes/lab03f/secrets",
+        "/Users/user/.local/state/chatroom-probes/lab03f/repo/.chatroom",
+        "/Users/user/.local/state/chatroom-probes/lab03f/runtime/ipc/*/staging",
+        "/Users/user/.local/state/chatroom-probes/lab03f/runtime/ipc/codex"
+      ]
+    }
+  },
+  "permissions": {
+    "deny": [
+      "Edit(///Users/user/.local/state/chatroom-probes/lab03f/runtime/worktrees/c0000001/codex/**)",
+      "Write(///Users/user/.local/state/chatroom-probes/lab03f/runtime/worktrees/c0000001/codex/**)",
+      "Edit(///Users/user/.local/state/chatroom-probes/lab03f/runtime/integration/c0000001/**)",
+      "Write(///Users/user/.local/state/chatroom-probes/lab03f/runtime/integration/c0000001/**)",
+      "Edit(///Users/user/.local/state/chatroom-probes/lab03f/runtime/ipc/codex/**)",
+      "Write(///Users/user/.local/state/chatroom-probes/lab03f/runtime/ipc/codex/**)",
+      "Edit(///Users/user/.local/state/chatroom-probes/lab03f/runtime/ipc/claude/to-agent/**)",
+      "Write(///Users/user/.local/state/chatroom-probes/lab03f/runtime/ipc/claude/to-agent/**)",
+      "Edit(///Users/user/.local/state/chatroom-probes/lab03f/runtime/ipc/claude/staging/**)",
+      "Write(///Users/user/.local/state/chatroom-probes/lab03f/runtime/ipc/claude/staging/**)",
+      "Read(///Users/user/.local/state/chatroom-probes/lab03f/repo/.chatroom/**)",
+      "Read(///Users/user/.local/state/chatroom-probes/lab03f/secrets/**)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CHATROOM_BIN\" hook"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CHATROOM_BIN\" hook"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,118 @@
+{
+  "probe": "05-codex-exec",
+  "finishedAt": "2026-09-07T07:29:57.151Z",
+  "wallMs": 39488,
+  "passed": 12,
+  "failed": 2,
+  "checks": [
+    {
+      "name": "E1 exit 0",
+      "ok": true
+    },
+    {
+      "name": "thread.started carries thread_id",
+      "ok": true
+    },
+    {
+      "name": "turn.completed carries usage.input_tokens and no model or context window",
+      "ok": true
+    },
+    {
+      "name": "-c overrides: CHATROOM_AGENT inherited and set map applied",
+      "ok": true
+    },
+    {
+      "name": "-c ignore_default_excludes=false strips *TOKEN*",
+      "ok": false
+    },
+    {
+      "name": "-c filters exclude strips *SECRET*",
+      "ok": false
+    },
+    {
+      "name": "TMPDIR is the scratch root",
+      "ok": true
+    },
+    {
+      "name": "E2 (exec resume) exit 0",
+      "ok": true
+    },
+    {
+      "name": "exec resume runs in the worktree when spawned there (no --cd on resume)",
+      "ok": true
+    },
+    {
+      "name": "commit under exec moved only the own branch",
+      "ok": true
+    },
+    {
+      "name": "main did not move",
+      "ok": true
+    },
+    {
+      "name": "resumed exec remembers the first run",
+      "ok": true
+    },
+    {
+      "name": "E3 exit 0",
+      "ok": true
+    },
+    {
+      "name": "blocked write under exec: file absent, no approval mechanism",
+      "ok": true
+    }
+  ],
+  "findings": {
+    "codex_version": "codex-cli 0.153.3",
+    "E1_thread_started": {
+      "type": "thread.started",
+      "thread_id": "01a07ac5-7c30-77a2-86b6-63c2595fe603"
+    },
+    "E1_event_types": [
+      "thread.started",
+      "turn.started",
+      "item.started",
+      "item.completed",
+      "turn.completed"
+    ],
+    "E1_turn_completed": {
+      "type": "turn.completed",
+      "usage": {
+        "input_tokens": 36458,
+        "cached_input_tokens": 22272,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 223,
+        "reasoning_output_tokens": 64
+      }
+    },
+    "E1_items": [
+      {
+        "id": "item_0",
+        "type": "command_execution",
+        "command": "/bin/zsh -lc 'echo \"$CHATROOM_AGENT|$CHATROOM_PROBE_SET|$MY_FAKE_TOKEN|$MY_FAKE_SECRET|$TMPDIR\"'",
+        "aggregated_output": "codex|via-c-set|token-should-be-stripped|secret-should-be-stripped|/Users/user/.local/state/chatroom-probes/lab05/runtime/ipc/codex/scratch/turn0001-n0nce\n",
+        "exit_code": 0,
+        "status": "completed"
+      },
+      {
+        "id": "item_1",
+        "type": "agent_message",
+        "text": "codex|via-c-set|token-should-be-stripped|secret-should-be-stripped|/Users/user/.local/state/chatroom-probes/lab05/runtime/ipc/codex/scratch/turn0001-n0nce"
+      }
+    ],
+    "E2_command_items": [
+      {
+        "command": "/bin/zsh -lc 'git add note.txt && git commit -q -m probe && git rev-parse HEAD'",
+        "exit_code": 0,
+        "output": "error: Unable to create '/Users/user/.local/state/chatroom-probes/lab05/repo/.git/packed-refs.lock': Operation not permitted\n5f81a082da701ca81f6e2b5729796ba4e8a97f7b\n"
+      }
+    ],
+    "E3_command_items": [],
+    "E3_event_types": [
+      "thread.started",
+      "turn.started",
+      "item.completed",
+      "turn.completed"
+    ]
+  }
+}

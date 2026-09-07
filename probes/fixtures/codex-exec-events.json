@@ -1,0 +1,23 @@
+{
+  "thread_started": {
+    "type": "thread.started",
+    "thread_id": "01a07ac5-7c30-77a2-86b6-63c2595fe603"
+  },
+  "event_types": [
+    "thread.started",
+    "turn.started",
+    "item.started",
+    "item.completed",
+    "turn.completed"
+  ],
+  "turn_completed": {
+    "type": "turn.completed",
+    "usage": {
+      "input_tokens": 36458,
+      "cached_input_tokens": 22272,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 223,
+      "reasoning_output_tokens": 64
+    }
+  }
+}

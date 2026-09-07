@@ -1,0 +1,125 @@
+{
+  "probe": "01-sqlite/v22.23.2",
+  "finishedAt": "2026-09-07T07:17:35.692Z",
+  "wallMs": 1752,
+  "passed": 24,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "crash 1: every reported commit survives, every group atomic",
+      "ok": true
+    },
+    {
+      "name": "crash 2: every reported commit survives, every group atomic",
+      "ok": true
+    },
+    {
+      "name": "crash 3: every reported commit survives, every group atomic",
+      "ok": true
+    },
+    {
+      "name": "crash 4: every reported commit survives, every group atomic",
+      "ok": true
+    },
+    {
+      "name": "crash 5: every reported commit survives, every group atomic",
+      "ok": true
+    },
+    {
+      "name": "crash 6: every reported commit survives, every group atomic",
+      "ok": true
+    },
+    {
+      "name": "crash 7: every reported commit survives, every group atomic",
+      "ok": true
+    },
+    {
+      "name": "crash 8: every reported commit survives, every group atomic",
+      "ok": true
+    },
+    {
+      "name": "crash 9: every reported commit survives, every group atomic",
+      "ok": true
+    },
+    {
+      "name": "crash 10: every reported commit survives, every group atomic",
+      "ok": true
+    },
+    {
+      "name": "crash 11: every reported commit survives, every group atomic",
+      "ok": true
+    },
+    {
+      "name": "crash 12: every reported commit survives, every group atomic",
+      "ok": true
+    },
+    {
+      "name": "journal_mode is wal",
+      "ok": true
+    },
+    {
+      "name": "synchronous is FULL (2)",
+      "ok": true
+    },
+    {
+      "name": "foreign_keys on",
+      "ok": true
+    },
+    {
+      "name": "busy_timeout 5000",
+      "ok": true
+    },
+    {
+      "name": "run() returns lastInsertRowid and changes",
+      "ok": true
+    },
+    {
+      "name": "AUTOINCREMENT never reuses a deleted id",
+      "ok": true
+    },
+    {
+      "name": "foreign key violation throws",
+      "ok": true
+    },
+    {
+      "name": "UNIQUE(author, operation_id) violation throws with an errcode",
+      "ok": true
+    },
+    {
+      "name": "ROLLBACK undoes the whole transaction",
+      "ok": true
+    },
+    {
+      "name": "read-only connection reads committed state during a write transaction",
+      "ok": true
+    },
+    {
+      "name": "read-only connection refuses writes",
+      "ok": true
+    },
+    {
+      "name": "second writer gets SQLITE_BUSY after busy_timeout",
+      "ok": true
+    }
+  ],
+  "findings": {
+    "node": "v22.23.2",
+    "sqlite_version": "3.51.3",
+    "crash_groups_committed_total": 20396,
+    "api": {
+      "isTransaction": "boolean",
+      "isOpen": "boolean",
+      "hasIterate": "function",
+      "hasBackup": "undefined",
+      "hasApplyChangeset": "function"
+    },
+    "wal_checkpoint": {
+      "busy": 0,
+      "log": 0,
+      "checkpointed": 0
+    },
+    "warnings": [
+      "ExperimentalWarning: SQLite is an experimental feature and might change at any time"
+    ]
+  }
+}

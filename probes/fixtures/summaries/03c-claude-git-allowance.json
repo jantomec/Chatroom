@@ -1,0 +1,112 @@
+{
+  "probe": "03c-claude-git-allowance",
+  "finishedAt": "2026-09-07T07:48:32.621Z",
+  "wallMs": 78674,
+  "passed": 7,
+  "failed": 2,
+  "checks": [
+    {
+      "name": "V1-sandbox-only: git commit landed on the own branch",
+      "ok": true
+    },
+    {
+      "name": "V1-sandbox-only: main did not move",
+      "ok": false
+    },
+    {
+      "name": "V1-sandbox-only: peer admin dir untouched",
+      "ok": false
+    },
+    {
+      "name": "V2-allowWrite-common-dir-plus-denyWrite: git commit landed on the own branch",
+      "ok": true
+    },
+    {
+      "name": "V2-allowWrite-common-dir-plus-denyWrite: main did not move",
+      "ok": true
+    },
+    {
+      "name": "V2-allowWrite-common-dir-plus-denyWrite: peer admin dir untouched",
+      "ok": true
+    },
+    {
+      "name": "V3-denyWrite-only: git commit landed on the own branch",
+      "ok": true
+    },
+    {
+      "name": "V3-denyWrite-only: main did not move",
+      "ok": true
+    },
+    {
+      "name": "V3-denyWrite-only: peer admin dir untouched",
+      "ok": true
+    }
+  ],
+  "findings": {
+    "V1-sandbox-only_settings": {
+      "sandbox": {
+        "enabled": true,
+        "failIfUnavailable": true,
+        "allowUnsandboxedCommands": false,
+        "autoAllowBashIfSandboxed": true
+      }
+    },
+    "V1-sandbox-only_tool_results": [
+      "5de7cb5654ee0cf429e76a7f53787ba724db823c",
+      "(Bash completed with no output)",
+      "(Bash completed with no output)"
+    ],
+    "V1-sandbox-only_reply": "1. exit 0, no error. Printed HEAD `5de7cb5654ee0cf429e76a7f53787ba724db823c`.\n2. exit 0, no error. `refs/heads/main` now points at that commit.\n3. exit 0, no error. File written under the codex worktree's `.git/worktrees/codex/` directory.\n\nAll three ran as written with no retries. The sandbox allowed all of them, including the write into the shared `repo/.git` tree, since that path is on the write allowlist. I did not verify the file contents or the ref value after the fact, since the instructi",
+    "V2-allowWrite-common-dir-plus-denyWrite_settings": {
+      "sandbox": {
+        "enabled": true,
+        "failIfUnavailable": true,
+        "allowUnsandboxedCommands": false,
+        "autoAllowBashIfSandboxed": true,
+        "filesystem": {
+          "allowWrite": [
+            "/Users/user/.local/state/chatroom-probes/lab03c-V2-allowWrite-common-dir-plus-denyWrite/repo/.git"
+          ],
+          "denyWrite": [
+            "/Users/user/.local/state/chatroom-probes/lab03c-V2-allowWrite-common-dir-plus-denyWrite/repo/.git/worktrees/codex",
+            "/Users/user/.local/state/chatroom-probes/lab03c-V2-allowWrite-common-dir-plus-denyWrite/repo/.git/worktrees/c0000001",
+            "/Users/user/.local/state/chatroom-probes/lab03c-V2-allowWrite-common-dir-plus-denyWrite/repo/.git/refs/heads/main",
+            "/Users/user/.local/state/chatroom-probes/lab03c-V2-allowWrite-common-dir-plus-denyWrite/repo/.git/refs/heads/chatroom/p0000001/c0000001/codex",
+            "/Users/user/.local/state/chatroom-probes/lab03c-V2-allowWrite-common-dir-plus-denyWrite/repo/.git/refs/heads/chatroom/p0000001/c0000001/integration",
+            "/Users/user/.local/state/chatroom-probes/lab03c-V2-allowWrite-common-dir-plus-denyWrite/repo/.git/packed-refs"
+          ]
+        }
+      }
+    },
+    "V2-allowWrite-common-dir-plus-denyWrite_tool_results": [
+      "5182ea847e22d133acb605519b59adc1cfd518bf",
+      "Exit code 128\nfatal: update_ref failed for ref 'refs/heads/main': couldn't set 'refs/heads/main'",
+      "Exit code 1\n(eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03c-V2-allowWrite-common-dir-plus-denyWrite/repo/.git/worktrees/codex/from-claude-admin.txt"
+    ],
+    "V2-allowWrite-common-dir-plus-denyWrite_reply": "1. exit 0, no error. HEAD is now 5182ea847e22d133acb605519b59adc1cfd518bf.\n2. exit 128, `fatal: update_ref failed for ref 'refs/heads/main': couldn't set 'refs/heads/main'`\n3. exit 1, `(eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03c-V2-allowWrite-common-dir-plus-denyWrite/repo/.git/worktrees/codex/from-claude-admin.txt`\n\nNot checked: whether command 1's commit also updated the shared repo's refs as intended, and whether the main branch ref was left unchange",
+    "V3-denyWrite-only_settings": {
+      "sandbox": {
+        "enabled": true,
+        "failIfUnavailable": true,
+        "allowUnsandboxedCommands": false,
+        "autoAllowBashIfSandboxed": true,
+        "filesystem": {
+          "denyWrite": [
+            "/Users/user/.local/state/chatroom-probes/lab03c-V3-denyWrite-only/repo/.git/worktrees/codex",
+            "/Users/user/.local/state/chatroom-probes/lab03c-V3-denyWrite-only/repo/.git/worktrees/c0000001",
+            "/Users/user/.local/state/chatroom-probes/lab03c-V3-denyWrite-only/repo/.git/refs/heads/main",
+            "/Users/user/.local/state/chatroom-probes/lab03c-V3-denyWrite-only/repo/.git/refs/heads/chatroom/p0000001/c0000001/codex",
+            "/Users/user/.local/state/chatroom-probes/lab03c-V3-denyWrite-only/repo/.git/refs/heads/chatroom/p0000001/c0000001/integration",
+            "/Users/user/.local/state/chatroom-probes/lab03c-V3-denyWrite-only/repo/.git/packed-refs"
+          ]
+        }
+      }
+    },
+    "V3-denyWrite-only_tool_results": [
+      "8f51984a73b47354b881d93431669b44f95a678b",
+      "Exit code 128\nfatal: update_ref failed for ref 'refs/heads/main': couldn't set 'refs/heads/main'",
+      "Exit code 1\n(eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03c-V3-denyWrite-only/repo/.git/worktrees/codex/from-claude-admin.txt"
+    ],
+    "V3-denyWrite-only_reply": "Results, one line per command:\n\n```\n1  0    (no error) — HEAD 8f51984a73b47354b881d93431669b44f95a678b\n2  128  fatal: update_ref failed for ref 'refs/heads/main': couldn't set 'refs/heads/main'\n3  1    (eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03c-V3-denyWrite-only/repo/.git/worktrees/codex/from-claude-admin.txt\n```\n\n- **Command 1** succeeded (exit 0). It created and committed `c.txt`, and printed the new commit SHA.\n- **Command 2** failed (exit 128). Git"
+  }
+}

@@ -1,0 +1,256 @@
+{
+  "probe": "02c-claude-control",
+  "finishedAt": "2026-09-07T07:28:35.759Z",
+  "wallMs": 26771,
+  "passed": 2,
+  "failed": 2,
+  "checks": [
+    {
+      "name": "auto mode: touch inside the worktree ran without a host handshake",
+      "ok": true
+    },
+    {
+      "name": "initialize control request gets a control_response",
+      "ok": true
+    },
+    {
+      "name": "manual mode after initialize: can_use_tool control_request arrived",
+      "ok": false
+    },
+    {
+      "name": "allow response let the write happen",
+      "ok": false
+    }
+  ],
+  "findings": {
+    "S1-auto_control_responses_and_denials": {
+      "denials": [],
+      "controlResponses": []
+    },
+    "S2_initialize_response": {
+      "type": "control_response",
+      "response": {
+        "subtype": "success",
+        "request_id": "probe-init-1",
+        "response": {
+          "commands": [],
+          "agents": [],
+          "output_style": "default",
+          "available_output_styles": [
+            "default",
+            "Proactive",
+            "Concise",
+            "Explanatory",
+            "Learning"
+          ],
+          "models": [
+            {
+              "value": "default",
+              "resolvedModel": "claude-opus-5[1m]",
+              "displayName": "Default (recommended)",
+              "description": "Opus 5 with 1M context · Best for everyday, complex tasks",
+              "supportsEffort": true,
+              "supportedEffortLevels": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "supportsAdaptiveThinking": true,
+              "supportsFastMode": true,
+              "supportsAutoMode": true
+            },
+            {
+              "value": "opus[1m]",
+              "resolvedModel": "claude-opus-5[1m]",
+              "displayName": "Opus (1M context)",
+              "description": "Opus 5 with 1M context · Best for everyday, complex tasks",
+              "supportsEffort": true,
+              "supportedEffortLevels": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "supportsAdaptiveThinking": true,
+              "supportsFastMode": true,
+              "supportsAutoMode": true
+            },
+            {
+              "value": "claude-fable-5-1[1m]",
+              "resolvedModel": "claude-fable-5-1",
+              "displayName": "Fable",
+              "description": "Fable 5.1 · Most capable for your hardest and longest-running tasks",
+              "supportsEffort": true,
+              "supportedEffortLevels": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "supportsAdaptiveThinking": true,
+              "supportsAutoMode": true
+            },
+            {
+              "value": "sonnet",
+              "resolvedModel": "claude-sonnet-5",
+              "displayName": "Sonnet",
+              "description": "Sonnet 5 · Efficient for routine tasks",
+              "supportsEffort": true,
+              "supportedEffortLevels": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "supportsAdaptiveThinking": true,
+              "supportsAutoMode": true
+            },
+            {
+              "value": "haiku",
+              "resolvedModel": "claude-haiku-4-5-20251001",
+              "displayName": "Haiku",
+              "description": "Haiku 4.5 · Fastest for quick answers"
+            }
+          ],
+          "account": {
+            "email": "user@example.invalid",
+            "organization": "user@example.invalid's Organization",
+            "subscriptionType": "Claude Max",
+            "apiProvider": "firstParty"
+          },
+          "pid": 28259,
+          "current_permission_mode": "default",
+          "analytics_disabled": false,
+          "remote_control_auto_enable": true,
+          "remote_control_available": true,
+          "remote_control_auto_on_by_default": true,
+          "ide_rc_auto_enable_gate": true,
+          "fast_mode_state": "off",
+          "fast_mode_disabled_reason": "sdk_opt_in_required",
+          "session_state": "idle"
+        }
+      }
+    },
+    "S2-manual-init_control_responses_and_denials": {
+      "denials": [
+        "touch in '/Users/user/.local/state/chatroom-probes/lab02c/runtime/worktrees/c0000001/claude/manual-allowed.txt' was blocked. For security, Claude Code may only create or modify files in the allowed working directories for this session: '/Users/user/.local/state/chatroom-probes/lab02c/runtime/worktrees/c0000001/claude'."
+      ],
+      "controlResponses": [
+        {
+          "type": "control_response",
+          "response": {
+            "subtype": "success",
+            "request_id": "probe-init-1",
+            "response": {
+              "commands": [],
+              "agents": [],
+              "output_style": "default",
+              "available_output_styles": [
+                "default",
+                "Proactive",
+                "Concise",
+                "Explanatory",
+                "Learning"
+              ],
+              "models": [
+                {
+                  "value": "default",
+                  "resolvedModel": "claude-opus-5[1m]",
+                  "displayName": "Default (recommended)",
+                  "description": "Opus 5 with 1M context · Best for everyday, complex tasks",
+                  "supportsEffort": true,
+                  "supportedEffortLevels": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max"
+                  ],
+                  "supportsAdaptiveThinking": true,
+                  "supportsFastMode": true,
+                  "supportsAutoMode": true
+                },
+                {
+                  "value": "opus[1m]",
+                  "resolvedModel": "claude-opus-5[1m]",
+                  "displayName": "Opus (1M context)",
+                  "description": "Opus 5 with 1M context · Best for everyday, complex tasks",
+                  "supportsEffort": true,
+                  "supportedEffortLevels": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max"
+                  ],
+                  "supportsAdaptiveThinking": true,
+                  "supportsFastMode": true,
+                  "supportsAutoMode": true
+                },
+                {
+                  "value": "claude-fable-5-1[1m]",
+                  "resolvedModel": "claude-fable-5-1",
+                  "displayName": "Fable",
+                  "description": "Fable 5.1 · Most capable for your hardest and longest-running tasks",
+                  "supportsEffort": true,
+                  "supportedEffortLevels": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max"
+                  ],
+                  "supportsAdaptiveThinking": true,
+                  "supportsAutoMode": true
+                },
+                {
+                  "value": "sonnet",
+                  "resolvedModel": "claude-sonnet-5",
+                  "displayName": "Sonnet",
+                  "description": "Sonnet 5 · Efficient for routine tasks",
+                  "supportsEffort": true,
+                  "supportedEffortLevels": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max"
+                  ],
+                  "supportsAdaptiveThinking": true,
+                  "supportsAutoMode": true
+                },
+                {
+                  "value": "haiku",
+                  "resolvedModel": "claude-haiku-4-5-20251001",
+                  "displayName": "Haiku",
+                  "description": "Haiku 4.5 · Fastest for quick answers"
+                }
+              ],
+              "account": {
+                "email": "user@example.invalid",
+                "organization": "user@example.invalid's Organization",
+                "subscriptionType": "Claude Max",
+                "apiProvider": "firstParty"
+              },
+              "pid": 28259,
+              "current_permission_mode": "default",
+              "analytics_disabled": false,
+              "remote_control_auto_enable": true,
+              "remote_control_available": true,
+              "remote_control_auto_on_by_default": true,
+              "ide_rc_auto_enable_gate": true,
+              "fast_mode_state": "off",
+              "fast_mode_disabled_reason": "sdk_opt_in_required",
+              "session_state": "idle"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

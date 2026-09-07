@@ -1,0 +1,128 @@
+{
+  "probe": "03d-claude-main-deny-vs-git",
+  "finishedAt": "2026-09-07T07:51:56.242Z",
+  "wallMs": 77722,
+  "passed": 10,
+  "failed": 2,
+  "checks": [
+    {
+      "name": "V4-main-deny-plus-allowWrite-git: git commit landed on the own branch",
+      "ok": false
+    },
+    {
+      "name": "V4-main-deny-plus-allowWrite-git: main did not move",
+      "ok": true
+    },
+    {
+      "name": "V4-main-deny-plus-allowWrite-git: peer admin dir untouched",
+      "ok": true
+    },
+    {
+      "name": "V4-main-deny-plus-allowWrite-git: shell write into the main tree blocked",
+      "ok": true
+    },
+    {
+      "name": "V4-main-deny-plus-allowWrite-git: native Write into the main tree refused",
+      "ok": true
+    },
+    {
+      "name": "V4-main-deny-plus-allowWrite-git: native Write into the git dir refused",
+      "ok": true
+    },
+    {
+      "name": "V5-main-deny-only: git commit landed on the own branch",
+      "ok": false
+    },
+    {
+      "name": "V5-main-deny-only: main did not move",
+      "ok": true
+    },
+    {
+      "name": "V5-main-deny-only: peer admin dir untouched",
+      "ok": true
+    },
+    {
+      "name": "V5-main-deny-only: shell write into the main tree blocked",
+      "ok": true
+    },
+    {
+      "name": "V5-main-deny-only: native Write into the main tree refused",
+      "ok": true
+    },
+    {
+      "name": "V5-main-deny-only: native Write into the git dir refused",
+      "ok": true
+    }
+  ],
+  "findings": {
+    "V4-main-deny-plus-allowWrite-git_settings": {
+      "sandbox": {
+        "enabled": true,
+        "failIfUnavailable": true,
+        "allowUnsandboxedCommands": false,
+        "autoAllowBashIfSandboxed": true,
+        "filesystem": {
+          "allowWrite": [
+            "/Users/user/.local/state/chatroom-probes/lab03d-V4-main-deny-plus-allowWrite-git/repo/.git"
+          ],
+          "denyWrite": [
+            "/Users/user/.local/state/chatroom-probes/lab03d-V4-main-deny-plus-allowWrite-git/repo/.git/worktrees/codex",
+            "/Users/user/.local/state/chatroom-probes/lab03d-V4-main-deny-plus-allowWrite-git/repo/.git/worktrees/c0000001",
+            "/Users/user/.local/state/chatroom-probes/lab03d-V4-main-deny-plus-allowWrite-git/repo/.git/refs/heads/main",
+            "/Users/user/.local/state/chatroom-probes/lab03d-V4-main-deny-plus-allowWrite-git/repo/.git/refs/heads/chatroom/p0000001/c0000001/codex",
+            "/Users/user/.local/state/chatroom-probes/lab03d-V4-main-deny-plus-allowWrite-git/repo/.git/refs/heads/chatroom/p0000001/c0000001/integration",
+            "/Users/user/.local/state/chatroom-probes/lab03d-V4-main-deny-plus-allowWrite-git/repo/.git/packed-refs"
+          ]
+        }
+      },
+      "permissions": {
+        "deny": [
+          "Edit(///Users/user/.local/state/chatroom-probes/lab03d-V4-main-deny-plus-allowWrite-git/repo/**)",
+          "Write(///Users/user/.local/state/chatroom-probes/lab03d-V4-main-deny-plus-allowWrite-git/repo/**)"
+        ]
+      }
+    },
+    "V4-main-deny-plus-allowWrite-git_tool_results": [
+      "Exit code 128\nfatal: Unable to create '/Users/user/.local/state/chatroom-probes/lab03d-V4-main-deny-plus-allowWrite-git/repo/.git/worktrees/claude/index.lock': Operation not permitted",
+      "Exit code 128\nfatal: update_ref failed for ref 'refs/heads/main': cannot lock ref 'refs/heads/main': Unable to create '/Users/user/.local/state/chatroom-probes/lab03d-V4-main-deny-plus-allowWrite-",
+      "Exit code 1\n(eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03d-V4-main-deny-plus-allowWrite-git/repo/.git/worktrees/codex/from-claude-admin.txt",
+      "Exit code 1\n(eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03d-V4-main-deny-plus-allowWrite-git/repo/from-claude-main.txt",
+      "<tool_use_error>File is in a directory that is denied by your permission settings.</tool_use_error>",
+      "<tool_use_error>File is in a directory that is denied by your permission settings.</tool_use_error>"
+    ],
+    "V4-main-deny-plus-allowWrite-git_reply": "All six attempts were denied. Nothing was written and no commit or ref update happened.\n\n1. exit 128: `fatal: Unable to create '.../repo/.git/worktrees/claude/index.lock': Operation not permitted`\n2. exit 128: `fatal: update_ref failed for ref 'refs/heads/main': cannot lock ref 'refs/heads/main': Unable to create '.../repo/.git/refs/heads/main.lock': Operation not permitted`\n3. exit 1: `(eval):1: operation not permitted: .../repo/.git/worktrees/codex/from-claude-admin.txt`\n4. exit 1: `(eval):1: operation not permitted: .../repo/from-claude-main.txt`\n- `/repo/native-main.txt` (Write): error `Fi",
+    "V5-main-deny-only_settings": {
+      "sandbox": {
+        "enabled": true,
+        "failIfUnavailable": true,
+        "allowUnsandboxedCommands": false,
+        "autoAllowBashIfSandboxed": true,
+        "filesystem": {
+          "denyWrite": [
+            "/Users/user/.local/state/chatroom-probes/lab03d-V5-main-deny-only/repo/.git/worktrees/codex",
+            "/Users/user/.local/state/chatroom-probes/lab03d-V5-main-deny-only/repo/.git/worktrees/c0000001",
+            "/Users/user/.local/state/chatroom-probes/lab03d-V5-main-deny-only/repo/.git/refs/heads/main",
+            "/Users/user/.local/state/chatroom-probes/lab03d-V5-main-deny-only/repo/.git/refs/heads/chatroom/p0000001/c0000001/codex",
+            "/Users/user/.local/state/chatroom-probes/lab03d-V5-main-deny-only/repo/.git/refs/heads/chatroom/p0000001/c0000001/integration",
+            "/Users/user/.local/state/chatroom-probes/lab03d-V5-main-deny-only/repo/.git/packed-refs"
+          ]
+        }
+      },
+      "permissions": {
+        "deny": [
+          "Edit(///Users/user/.local/state/chatroom-probes/lab03d-V5-main-deny-only/repo/**)",
+          "Write(///Users/user/.local/state/chatroom-probes/lab03d-V5-main-deny-only/repo/**)"
+        ]
+      }
+    },
+    "V5-main-deny-only_tool_results": [
+      "Exit code 128\nfatal: Unable to create '/Users/user/.local/state/chatroom-probes/lab03d-V5-main-deny-only/repo/.git/worktrees/claude/index.lock': Operation not permitted",
+      "Exit code 128\nfatal: update_ref failed for ref 'refs/heads/main': cannot lock ref 'refs/heads/main': Unable to create '/Users/user/.local/state/chatroom-probes/lab03d-V5-main-deny-only/repo/.git/r",
+      "Exit code 1\n(eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03d-V5-main-deny-only/repo/.git/worktrees/codex/from-claude-admin.txt",
+      "Exit code 1\n(eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03d-V5-main-deny-only/repo/from-claude-main.txt",
+      "<tool_use_error>File is in a directory that is denied by your permission settings.</tool_use_error>",
+      "<tool_use_error>File is in a directory that is denied by your permission settings.</tool_use_error>"
+    ],
+    "V5-main-deny-only_reply": "All six probes ran once each. Every one was denied.\n\n1. exit 128: `fatal: Unable to create '.../repo/.git/worktrees/claude/index.lock': Operation not permitted`\n2. exit 128: `fatal: update_ref failed for ref 'refs/heads/main': cannot lock ref 'refs/heads/main': Unable to create '.../repo/.git/refs/heads/main.lock': Operation not permitted`\n3. exit 1: `(eval):1: operation not permitted: .../repo/.git/worktrees/codex/from-claude-admin.txt`\n4. exit 1: `(eval):1: operation not permitted: .../repo/from-claude-main.txt`\n5. `.../repo/native-main.txt` (Write): error, `File is in a directory that is de"
+  }
+}

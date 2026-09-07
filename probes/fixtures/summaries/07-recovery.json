@@ -1,0 +1,150 @@
+{
+  "probe": "07-recovery",
+  "finishedAt": "2026-09-07T07:57:51.027Z",
+  "wallMs": 4853,
+  "passed": 30,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "snapshot without crash: branch advanced by one commit whose tree matches the worktree; index aligned; worktree clean of tracked changes",
+      "ok": true
+    },
+    {
+      "name": "snapshot crash after step 0 (tree_write, unrecorded): recovery reaches the uncrashed end state",
+      "ok": true
+    },
+    {
+      "name": "snapshot crash after step 0 (unrecorded): exactly one snapshot commit on the branch",
+      "ok": true
+    },
+    {
+      "name": "snapshot crash after step 1 (commit_write, unrecorded): recovery reaches the uncrashed end state",
+      "ok": true
+    },
+    {
+      "name": "snapshot crash after step 1 (unrecorded): exactly one snapshot commit on the branch",
+      "ok": true
+    },
+    {
+      "name": "snapshot crash after step 2 (ref_cas, unrecorded): recovery reaches the uncrashed end state",
+      "ok": true
+    },
+    {
+      "name": "snapshot crash after step 2 (unrecorded): exactly one snapshot commit on the branch",
+      "ok": true
+    },
+    {
+      "name": "snapshot crash after step 3 (index_align, unrecorded): recovery reaches the uncrashed end state",
+      "ok": true
+    },
+    {
+      "name": "snapshot crash after step 3 (unrecorded): exactly one snapshot commit on the branch",
+      "ok": true
+    },
+    {
+      "name": "snapshot crash after step 0 (tree_write, recorded): recovery reaches the uncrashed end state",
+      "ok": true
+    },
+    {
+      "name": "snapshot crash after step 0 (recorded): exactly one snapshot commit on the branch",
+      "ok": true
+    },
+    {
+      "name": "snapshot crash after step 1 (commit_write, recorded): recovery reaches the uncrashed end state",
+      "ok": true
+    },
+    {
+      "name": "snapshot crash after step 1 (recorded): exactly one snapshot commit on the branch",
+      "ok": true
+    },
+    {
+      "name": "snapshot crash after step 2 (ref_cas, recorded): recovery reaches the uncrashed end state",
+      "ok": true
+    },
+    {
+      "name": "snapshot crash after step 2 (recorded): exactly one snapshot commit on the branch",
+      "ok": true
+    },
+    {
+      "name": "snapshot crash after step 3 (index_align, recorded): recovery reaches the uncrashed end state",
+      "ok": true
+    },
+    {
+      "name": "snapshot crash after step 3 (recorded): exactly one snapshot commit on the branch",
+      "ok": true
+    },
+    {
+      "name": "snapshot: ref moved by someone else before ref_cas -> needs_user with both oids, nothing overwritten",
+      "ok": true
+    },
+    {
+      "name": "integrate without crash: integration is a merge commit with parents (old integration, snapshot)",
+      "ok": true
+    },
+    {
+      "name": "integrate crash after the merge (unrecorded): classified done and end state matches",
+      "ok": true
+    },
+    {
+      "name": "integrate crash after the merge (recorded): classified done and end state matches",
+      "ok": true
+    },
+    {
+      "name": "integrate conflict with MERGE_HEAD present at startup: classified abort/failed",
+      "ok": true
+    },
+    {
+      "name": "integrate conflict recovery: abort ran, MERGE_HEAD gone, integration ref unchanged",
+      "ok": true
+    },
+    {
+      "name": "apply without crash: MERGE_HEAD present, index holds the merge, main ref unchanged",
+      "ok": true
+    },
+    {
+      "name": "apply: crash between the main merge and its transaction -> MERGE_HEAD present -> needs_user (never rerun, never abort)",
+      "ok": true
+    },
+    {
+      "name": "apply --abort with the post-merge index unrecorded -> needs_user, MERGE_HEAD still present",
+      "ok": true
+    },
+    {
+      "name": "apply: crash before the merge ran -> rerun after a fresh preflight; the fresh preflight catches a file the user created meanwhile",
+      "ok": true
+    },
+    {
+      "name": "apply: user committed the merge before restart -> done by the user",
+      "ok": true
+    },
+    {
+      "name": "apply --abort: crash after git merge --abort before recording -> MERGE_HEAD absent -> done; main tree clean",
+      "ok": true
+    },
+    {
+      "name": "apply --abort: index changed after the merge -> needs_user, MERGE_HEAD kept, staged file kept",
+      "ok": true
+    }
+  ],
+  "findings": {
+    "git": "git version 2.54.0",
+    "snapshot_uncrashed": {
+      "log": [
+        "  step 0 tree_write -> done",
+        "  step 1 commit_write -> done",
+        "  step 2 ref_cas -> done",
+        "  step 3 index_align -> done"
+      ],
+      "state": {
+        "claude": "06bb475b8a8aaef92b258bab47c9b9da57d58a38",
+        "integration": "4cf18bdea59de1e703bf51104208892097734976",
+        "main": "4cf18bdea59de1e703bf51104208892097734976",
+        "agentIndexTree": "7c0744c475b4924be8a3aa7214798c1841f25841",
+        "agentStatus": "",
+        "mainMergeHead": false,
+        "mainIndex": "100644 f89d64dab6bbf0db7bfd8b939dfe59b2e7977894 0\t.gitignore\n100644 ea062b87925ea8ae92f2a3a07a4b37a3223299a4 0\tREADME.md\n100644 c0d0fb45c382919737f8d0c20aaf57cf89b74af8 0\tsrc/app.txt"
+      },
+      "tree": "7c0744c475b4924be8a3aa7214798c1841f25841"
+    }
+  }
+}

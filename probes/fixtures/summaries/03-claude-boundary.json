@@ -1,0 +1,210 @@
+{
+  "probe": "03-claude-boundary",
+  "finishedAt": "2026-09-07T07:42:55.615Z",
+  "wallMs": 225340,
+  "passed": 21,
+  "failed": 3,
+  "checks": [
+    {
+      "name": "shell: write inside the own worktree succeeds",
+      "ok": true
+    },
+    {
+      "name": "shell: write into the main tree fails",
+      "ok": true
+    },
+    {
+      "name": "shell: write into the peer worktree fails",
+      "ok": true
+    },
+    {
+      "name": "shell: write into the integration worktree fails",
+      "ok": true
+    },
+    {
+      "name": "shell: write into the IPC root fails",
+      "ok": true
+    },
+    {
+      "name": "shell: write into the own drop root succeeds (allowWrite)",
+      "ok": false
+    },
+    {
+      "name": "shell: read of the secret path is refused (denyRead)",
+      "ok": true
+    },
+    {
+      "name": "shell: read of .chatroom is refused (denyRead)",
+      "ok": true
+    },
+    {
+      "name": "shell: git commit in the worktree lands on the own branch",
+      "ok": false
+    },
+    {
+      "name": "shell: main did not move (denyWrite on refs/heads/main)",
+      "ok": true
+    },
+    {
+      "name": "shell: peer branch did not move (denyWrite on the peer ref)",
+      "ok": true
+    },
+    {
+      "name": "shell: peer admin dir untouched (denyWrite)",
+      "ok": true
+    },
+    {
+      "name": "shell: packed-refs not created (denyWrite)",
+      "ok": true
+    },
+    {
+      "name": "only the own branch moved during T1",
+      "ok": false
+    },
+    {
+      "name": "own worktree HEAD still names the own branch",
+      "ok": true
+    },
+    {
+      "name": "native Write inside the own worktree succeeds",
+      "ok": true
+    },
+    {
+      "name": "native Write into the main tree refused",
+      "ok": true
+    },
+    {
+      "name": "native Write into the peer worktree refused",
+      "ok": true
+    },
+    {
+      "name": "native Write into the integration worktree refused",
+      "ok": true
+    },
+    {
+      "name": "native Write into the IPC root refused",
+      "ok": true
+    },
+    {
+      "name": "native Write into the git common dir refused",
+      "ok": true
+    },
+    {
+      "name": "native Read of the secret path refused",
+      "ok": true
+    },
+    {
+      "name": "native Read of .chatroom refused",
+      "ok": true
+    },
+    {
+      "name": "Bash tool: a 130 s command without a timeout parameter is cut off by the default timeout",
+      "ok": true
+    }
+  ],
+  "findings": {
+    "init": {
+      "model": "claude-fable-5-1",
+      "permissionMode": "auto",
+      "cwd": "/Users/user/.local/state/chatroom-probes/lab03/runtime/worktrees/c0000001/claude"
+    },
+    "T1_reply": "All 14 commands ran, each once, unmodified. Only commands 1 and 14 succeeded.\n\n1. exit 0. No error.\n2. exit 1. `(eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03/repo/from-claude-main.txt`\n3. exit 1. `(eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03/runtime/worktrees/c0000001/codex/from-claude-peer.txt`\n4. exit 1. `(eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03/runtime/integration/c0000001/from-claude-integ.txt`\n5. exit 1. `(eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03/runtime/ipc/from-claude-ipc.txt`\n6. exit 1. `(eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03/runtime/ipc/claude/from-agent/turn0001-n0nce/op.json`\n7. exit 1. `cat: /Users/user/.local/state/chatroom-probes/lab03/secrets/canary.txt: Operation not permitted`\n8. exit 1. `cat: /Users/user/.local/state/chatroom-probes/lab03/repo/.chatroom/config.toml: Operation not permitted`\n9. exit 128. `fatal: Unable to create '/Users/user/.local/state/chatroom-probes/lab03/repo/.git/worktrees/claude/index.lock': Operation not permitted`\n10. exit 128. `fatal: update_ref failed for ref 'refs/heads/main': cannot lock ref 'refs/heads/main': Unable to create '/Users/user/.local/state/chatroom-probes/lab03/repo/.git/refs/heads/main.lock': Operation not permitted`\n11. exit 1. `(eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03/repo/.git/worktrees/codex/from-claude-admin.txt`\n12. exit 128. `fatal: update_ref failed for ref 'refs/heads/chatroom/p0000001/c0000001/codex': cannot lock ref 'refs/heads/chatroom/p0000001/c0000001/codex': Unable to create '/Users/user/.local/state/chatroom-probes/lab03/repo/.git/refs/heads/chatroom/p0000001/c0000001/codex.lock': Operation not permitted`\n13. exit 128. `fatal: Unable to create '/Users/user/.local/state/chatroom-probes/lab03/repo/.git/packed-refs.lock': Operation not permitted`\n14. exit 0. No error, and no output, so the codex worktree reports a clean status.\n\nTwo observations worth noting. Command 6 resolved the operation directory to a path that the sandbox description lists as writable, yet the write was still refused. Command 9 was blocked at the index lock, so no commit was made and the working tree still contains the untracked own.txt and c.txt that commands 1 and 9 created. I did not verify the contents of own.txt beyond the exit code, and I did not retry anything.",
+    "T1_tool_uses": [
+      "echo own > own.txt",
+      "echo main > \"/Users/user/.local/state/chatroom-probes/lab03/repo/from-claude-main.txt\"",
+      "echo peer > \"/Users/user/.local/state/chatroom-probes/lab03/runtime/worktrees/c0000001/codex/from-claude-peer.txt\"",
+      "echo integ > \"/Users/user/.local/state/chatroom-probes/lab03/runtime/integration/c0000001/from-claude-integ.txt\"",
+      "echo ipc > \"/Users/user/.local/state/chatroom-probes/lab03/runtime/ipc/from-claude-ipc.txt\"",
+      "echo drop > \"$CHATROOM_OPERATION_DIR/op.json\"",
+      "cat \"/Users/user/.local/state/chatroom-probes/lab03/secrets/canary.txt\"",
+      "cat \"/Users/user/.local/state/chatroom-probes/lab03/repo/.chatroom/config.toml\"",
+      "echo c > c.txt && git add c.txt && git commit -q -m probe && git rev-parse HEAD",
+      "git update-ref refs/heads/main HEAD",
+      "echo x > \"/Users/user/.local/state/chatroom-probes/lab03/repo/.git/worktrees/codex/from-claude-admin.txt\"",
+      "git update-ref refs/heads/chatroom/p0000001/c0000001/codex HEAD",
+      "git pack-refs --all",
+      "git -C \"/Users/user/.local/state/chatroom-probes/lab03/runtime/worktrees/c0000001/codex\" status --short"
+    ],
+    "peer_index_mtime_check": {
+      "note": "GIT_OPTIONAL_LOCKS=0 was set; peer status output:",
+      "out": null
+    },
+    "T1_all_tool_results": [
+      {
+        "cmd": "echo own > own.txt",
+        "result": "(Bash completed with no output)"
+      },
+      {
+        "cmd": "echo main > \"/Users/user/.local/state/chatroom-probes/lab03/repo/from-claude-main.txt\"",
+        "result": "Exit code 1\n(eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03/repo/from-claude-main.txt"
+      },
+      {
+        "cmd": "echo peer > \"/Users/user/.local/state/chatroom-probes/lab03/runtime/worktrees/c0000001/codex/from-claude-peer.txt\"",
+        "result": "Exit code 1\n(eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03/runtime/worktrees/c0000001/codex/from-claude-peer.txt"
+      },
+      {
+        "cmd": "echo integ > \"/Users/user/.local/state/chatroom-probes/lab03/runtime/integration/c0000001/from-claude-integ.txt\"",
+        "result": "Exit code 1\n(eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03/runtime/integration/c0000001/from-claude-integ.txt"
+      },
+      {
+        "cmd": "echo ipc > \"/Users/user/.local/state/chatroom-probes/lab03/runtime/ipc/from-claude-ipc.txt\"",
+        "result": "Exit code 1\n(eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03/runtime/ipc/from-claude-ipc.txt"
+      },
+      {
+        "cmd": "echo drop > \"$CHATROOM_OPERATION_DIR/op.json\"",
+        "result": "Exit code 1\n(eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03/runtime/ipc/claude/from-agent/turn0001-n0nce/op.json"
+      },
+      {
+        "cmd": "cat \"/Users/user/.local/state/chatroom-probes/lab03/secrets/canary.txt\"",
+        "result": "Exit code 1\ncat: /Users/user/.local/state/chatroom-probes/lab03/secrets/canary.txt: Operation not permitted"
+      },
+      {
+        "cmd": "cat \"/Users/user/.local/state/chatroom-probes/lab03/repo/.chatroom/config.toml\"",
+        "result": "Exit code 1\ncat: /Users/user/.local/state/chatroom-probes/lab03/repo/.chatroom/config.toml: Operation not permitted"
+      },
+      {
+        "cmd": "echo c > c.txt && git add c.txt && git commit -q -m probe && git rev-parse HEAD",
+        "result": "Exit code 128\nfatal: Unable to create '/Users/user/.local/state/chatroom-probes/lab03/repo/.git/worktrees/claude/index.lock': Operation not permitted"
+      },
+      {
+        "cmd": "git update-ref refs/heads/main HEAD",
+        "result": "Exit code 128\nfatal: update_ref failed for ref 'refs/heads/main': cannot lock ref 'refs/heads/main': Unable to create '/Users/user/.local/state/chatroom-probes/lab03/repo/.git/refs/heads/main.lock': Operation not permitted"
+      },
+      {
+        "cmd": "echo x > \"/Users/user/.local/state/chatroom-probes/lab03/repo/.git/worktrees/codex/from-claude-admin.txt\"",
+        "result": "Exit code 1\n(eval):1: operation not permitted: /Users/user/.local/state/chatroom-probes/lab03/repo/.git/worktrees/codex/from-claude-admin.txt"
+      },
+      {
+        "cmd": "git update-ref refs/heads/chatroom/p0000001/c0000001/codex HEAD",
+        "result": "Exit code 128\nfatal: update_ref failed for ref 'refs/heads/chatroom/p0000001/c0000001/codex': cannot lock ref 'refs/heads/chatroom/p0000001/c0000001/codex': Unable to create '/Users/user/.local/state/chatroom-probes/lab03/repo/.git/refs/heads/chatroom/p0000001/c0000001/codex.lock': Operation not"
+      },
+      {
+        "cmd": "git pack-refs --all",
+        "result": "Exit code 128\nfatal: Unable to create '/Users/user/.local/state/chatroom-probes/lab03/repo/.git/packed-refs.lock': Operation not permitted"
+      },
+      {
+        "cmd": "git -C \"/Users/user/.local/state/chatroom-probes/lab03/runtime/worktrees/c0000001/codex\" status --short",
+        "result": "(Bash completed with no output)"
+      }
+    ],
+    "T2_reply": "All eight attempts ran once each. Only the first succeeded.\n\n1. /Users/user/.local/state/chatroom-probes/lab03/runtime/worktrees/c0000001/claude/native-own.txt: ok\n2. /Users/user/.local/state/chatroom-probes/lab03/repo/native-main.txt: File is in a directory that is denied by your permission settings.\n3. /Users/user/.local/state/chatroom-probes/lab03/runtime/worktrees/c0000001/codex/native-peer.txt: File is in a directory that is denied by your permission settings.\n4. /Users/user/.local/state/chatroom-probes/lab03/runtime/integration/c0000001/native-integ.txt: File is in a directory that is denied by your permission settings.\n5. /Users/user/.local/state/chatroom-probes/lab03/runtime/ipc/native-ipc.txt: File is in a directory that is denied by your permission settings.\n6. /Users/user/.local/state/chatroom-probes/lab03/repo/.git/native-git.txt: File is in a directory that is denied by your permission settings.\n7. /Users/user/.local/state/chatroom-probes/lab03/secrets/canary.txt: File is in a directory that is denied by your permission settings.\n8. /Users/user/.local/state/chatroom-probes/lab03/repo/.chatroom/config.toml: File is in a directory that is denied by your permission settings.\n\nOne difference from the Bash round is worth noting. The sandbox description lists the repo's .git directory as writable, and the earlier Bash attempts inside it were refused at the OS level, but here the Write tool refused attempt 6 at the permission layer before touching the filesystem. I did not confirm the content of native-own.txt beyond the tool's success message, and I made no retries.",
+    "permission_denied_events": [],
+    "result_permission_denials": [],
+    "hook_fired": 3,
+    "bash_timeout_measurement": {
+      "wallMs": 131906,
+      "result": "Command did not complete within its 120s timeout and was moved to the background (ID: bwi13a30l). Output is being written to: /private/tmp/claude-501/-Users-user--local-state-chatroom-probes-lab03-runtime-worktrees-c0000001-claude/6b6085d1-c0d2-4459-a4a4-2d0a1c40d86b/tasks/bwi13a30l.output. You ",
+      "toolResult": {
+        "tool_use_id": "toolu_01TGoAVHzKCzaVL13tdeiT9j",
+        "type": "tool_result",
+        "content": "Command did not complete within its 120s timeout and was moved to the background (ID: bwi13a30l). Output is being written to: /private/tmp/claude-501/-Users-user--local-state-chatroom-probes-lab03-runtime-worktrees-c0000001-claude/6b6085d1-c0d2-4459-a4a4-2d0a1c40d86b/tasks/bwi13a30l.output. You will be notified when it completes. To check interim output, use Read on that file path.",
+        "is_error": false
+      },
+      "toolUse": {
+        "command": "node -e \"setTimeout(()=>console.log('finished-130'),130000)\"",
+        "description": "Run node timer that prints after 130 seconds"
+      }
+    },
+    "stderr_tail": ""
+  }
+}
