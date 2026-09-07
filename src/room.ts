@@ -109,6 +109,7 @@ export interface RoomHooks {
   context?: (agent: Agent) => { workspace?: { own: string; integration: string; peer: string; main: string }; peerChanges?: string[] } | undefined;
   afterTurn?: (agent: Agent) => Promise<void> | void;                  // e.g. refresh ref expectations
   session?: (agent: Agent) => { cwd: string; brief: string };          // what a driver needs to connect
+  status?: () => void;                                                 // a status value changed; repaint
 }
 
 export class Room {
@@ -118,6 +119,7 @@ export class Room {
   readonly hooks: RoomHooks;
   state: RoomState;
   private starting: Record<Agent, boolean> = { claude: false, codex: false };
+  private connected: Record<Agent, boolean> = { claude: false, codex: false };
   private pendingHook: Record<Agent, number[]> = { claude: [], codex: [] };
   private explicitReply: Record<Agent, boolean> = { claude: false, codex: false };
   private askWaiters = new Map<number, { agent: Agent; resolve: (r: { status: string; message?: MessageRecord }) => void }>();
@@ -335,22 +337,31 @@ export class Room {
     return parts.length ? parts.join(" | ") : undefined;
   }
 
+  /** Connect a driver to its session (resuming the recorded id) once per process. */
+  async ensureConnected(a: Agent): Promise<void> {
+    if (this.connected[a]) return;
+    const wanted = this.state.sessions[a].id;
+    const spec = this.hooks.session?.(a) ?? { cwd: process.cwd(), brief: "" };
+    const res = await this.drivers[a].connect({ id: wanted, cwd: spec.cwd, brief: spec.brief });
+    this.connected[a] = true;
+    const event = res.resumed ? "resumed" : (wanted ? "rebuilt" : "started");
+    this.log.append({ kind: "session", agent: a, event, session: res.sessionId });
+    this.refold();
+  }
+  /** Connect both drivers now, so the status bar reports before the first turn; no model call is made. */
+  async warm(): Promise<void> {
+    for (const a of AGENTS) { try { await this.ensureConnected(a); } catch (e) { this.say(`  · ${this.handle(a)} could not connect: ${String(e)}`); } }
+  }
   private async startTurn(a: Agent, batch: number[]): Promise<void> {
     this.starting[a] = true;
     try {
       const d = this.drivers[a];
       const interrupted = this.state.interrupted[a];
       let recovery: string | undefined;
-      if (this.state.sessions[a].state === "none" || interrupted) {
-        const wanted = this.state.sessions[a].id;
-        const spec = this.hooks.session?.(a) ?? { cwd: process.cwd(), brief: "" };
-        const res = await d.connect({ id: wanted, cwd: spec.cwd, brief: spec.brief });
-        const event = res.resumed ? "resumed" : (wanted ? "rebuilt" : "started");
-        this.log.append({ kind: "session", agent: a, event, session: res.sessionId });
-        if (interrupted) {
-          recovery = `[chatroom] Recovery note: your previous turn ${interrupted.id} was interrupted (messages ${interrupted.inputs.map((i) => "#" + i).join(", ")} had reached you). Inspect the worktree before repeating commands or edits.`;
-          this.state.interrupted[a] = null;
-        }
+      await this.ensureConnected(a);
+      if (interrupted) {
+        recovery = `[chatroom] Recovery note: your previous turn ${interrupted.id} was interrupted (messages ${interrupted.inputs.map((i) => "#" + i).join(", ")} had reached you). Inspect the worktree before repeating commands or edits.`;
+        this.state.interrupted[a] = null;
       }
       const id = `t-${String(this.state.turnCount + 1).padStart(4, "0")}`;
       this.log.append({ kind: "turn", agent: a, turn: id, event: "started", inputs: batch });
@@ -380,12 +391,12 @@ export class Room {
       case "status": {
         const cur = this.state.status[a]; const changed: any = {};
         for (const k of ["model", "effort", "cwd", "contextTokens", "contextWindow"] as const) if (e.status[k] !== undefined && e.status[k] !== cur[k]) changed[k] = e.status[k];
-        if (Object.keys(changed).length) { this.log.append({ kind: "status", agent: a, ...changed }); this.refold(); }
+        if (Object.keys(changed).length) { this.log.append({ kind: "status", agent: a, ...changed }); this.refold(); this.hooks.status?.(); }
         break;
       }
       case "final": await this.endTurn(a, e.text, e.cost); break;
       case "error": this.say(`    · ${this.handle(a)} error: ${e.message}`); if (turn) { this.log.append({ kind: "turn", agent: a, turn: turn.id, event: "failed", reason: e.message }); this.returnPendingHook(a); this.refold(); await this.tick(); } break;
-      case "exit": if (turn) { this.log.append({ kind: "turn", agent: a, turn: turn.id, event: "failed", reason: `driver exited ${e.code ?? e.signal}` }); this.returnPendingHook(a); this.log.append({ kind: "session", agent: a, event: "closed" }); this.refold(); await this.tick(); } break;
+      case "exit": this.connected[a] = false; if (turn) { this.log.append({ kind: "turn", agent: a, turn: turn.id, event: "failed", reason: `driver exited ${e.code ?? e.signal}` }); this.returnPendingHook(a); this.log.append({ kind: "session", agent: a, event: "closed" }); this.refold(); await this.tick(); } break;
     }
   }
   private returnPendingHook(a: Agent): void {
@@ -395,7 +406,7 @@ export class Room {
   reportStatus(a: Agent, status: Partial<Status>): void {
     const cur = this.state.status[a]; const changed: any = {};
     for (const k of ["model", "effort", "cwd", "contextTokens", "contextWindow"] as const) if (status[k] !== undefined && status[k] !== cur[k]) changed[k] = status[k];
-    if (Object.keys(changed).length) { this.log.append({ kind: "status", agent: a, ...changed }); this.refold(); }
+    if (Object.keys(changed).length) { this.log.append({ kind: "status", agent: a, ...changed }); this.refold(); this.hooks.status?.(); }
   }
   /** `chatroom hook`/`inbox` acknowledged a delivery: those messages now count as received. */
   async ackDelivery(a: Agent, ids: number[]): Promise<void> {

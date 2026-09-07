@@ -123,7 +123,8 @@ class Session {
       output: (line) => this.print(line),
       prompt: (agent, id, summary) => this.print(`!${id.slice(0, 8)} ${config.names[agent]} asks: ${summary}   (/allow ${id.slice(0, 8)} or /deny ${id.slice(0, 8)} [reason])`),
       context: (agent) => ({ workspace: this.ws.workspaceLine(agent), peerChanges: this.ws.peerChanges(agent, null) }),
-      afterTurn: (agent) => { this.ws.refresh(); this.ipc.clear(agent); },
+      afterTurn: (agent) => { this.ws.refresh(); this.ipc.clear(agent); this.barCache = null; },
+      status: () => this.repl?.redraw(),
       session: (agent) => ({ cwd: this.conv.worktrees[agent], brief: makeBrief({ agent, names: config.names, myWorktree: this.conv.worktrees[agent], peerWorktree: this.conv.worktrees[agent === "claude" ? "codex" : "claude"], mainTree: project.mainWorktree, myBranch: this.conv.branches[agent], nativeCommit: true, extra: config.briefExtra }) }),
     });
   }
@@ -186,7 +187,7 @@ class Session {
     this.ws.refresh();
     this.repl = new Repl({
       room: this.room, names: config.names, statusBar: config.statusBar,
-      bar: () => ({ branch: { claude: this.branchCell("claude"), codex: this.branchCell("codex") }, directory: { claude: this.conv.worktrees.claude, codex: this.conv.worktrees.codex }, mainBranch: this.ctx.repo.mainBranch() ?? "detached", mainPath: project.mainWorktree, integrationAhead: this.ctx.repo.unintegrated(this.conv).integration, conversation: this.name }),
+      bar: () => this.barInfo(),
       command: (line) => this.command(line),
       onQuit: () => this.close(),
     });
@@ -205,6 +206,7 @@ class Session {
     const recent = [...this.room.state.messages.values()].slice(-5);
     for (const m of recent) this.print(`#${m.id} ${config.names[m.from as Agent] ?? m.from} → ${m.to.map((t) => "@" + (config.names[t as Agent] ?? t)).join(" ")}  ${m.at.slice(11, 16)}  ${m.via ?? ""}\n  ${m.body.split("\n")[0]?.slice(0, 120)}`);
     this.poll = setInterval(() => { void this.pollIpc(); }, 150);
+    void this.room.warm().then(() => this.repl?.redraw());
     await this.room.tick();
     await new Promise<void>((r) => { this.done = r; });
     process.off("SIGTERM", onSignal); process.off("SIGHUP", onHangup); process.off("uncaughtException", onError); process.off("unhandledRejection", onError);
@@ -212,6 +214,14 @@ class Session {
   }
   private done: (() => void) | null = null;
   private closing = false;
+  private barCache: { at: number; info: import("./repl.ts").BarInfo } | null = null;
+  /** The git-derived status values, refreshed at most every three seconds so a keystroke never runs git. */
+  private barInfo(force = false): import("./repl.ts").BarInfo {
+    if (!force && this.barCache && Date.now() - this.barCache.at < 3000) return this.barCache.info;
+    const info = { branch: { claude: this.branchCell("claude"), codex: this.branchCell("codex") }, directory: { claude: this.conv.worktrees.claude, codex: this.conv.worktrees.codex }, mainBranch: this.ctx.repo.mainBranch() ?? "detached", mainPath: this.ctx.project.mainWorktree, integrationAhead: this.ctx.repo.unintegrated(this.conv).integration, conversation: this.name };
+    this.barCache = { at: Date.now(), info };
+    return info;
+  }
   private branchCell(a: Agent): string { const h = this.ctx.repo.headRef(this.conv.adminDirs[a]); return h === `refs/heads/${this.conv.branches[a]}` ? this.conv.branches[a].replace(`chatroom/${this.name}/`, "chatroom/…/") : "detached"; }
 
   async close(): Promise<void> {

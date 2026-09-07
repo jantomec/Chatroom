@@ -56,6 +56,11 @@ export class ClaudeDriver implements Driver {
     return a;
   }
 
+  private ctxRequest = 0;
+  /** Ask the CLI for its context figures; answered locally, no model call (measured). */
+  private askContext(): void {
+    try { this.write({ type: "control_request", request_id: `ctx-${++this.ctxRequest}`, request: { subtype: "get_context_usage" } }); } catch { /* not running */ }
+  }
   private async spawn(resume: boolean): Promise<void> {
     const child = spawn(this.opts.bin, this.args(resume), { cwd: this.cwd, env: this.opts.env(), stdio: ["pipe", "pipe", "pipe"] });
     this.child = child;
@@ -74,6 +79,7 @@ export class ClaudeDriver implements Driver {
     });
     await new Promise((r) => setTimeout(r, 50));
     if (child.exitCode !== null) throw new Error(`claude exited at start (${child.exitCode}): ${stderr.trim()}`);
+    this.askContext();
   }
 
   private sawInit = false;
@@ -141,6 +147,18 @@ export class ClaudeDriver implements Driver {
       }
       case "user": {
         for (const b of ev.message?.content ?? []) if (b.type === "tool_result") this.emit({ type: "tool_result", text: typeof b.content === "string" ? b.content : JSON.stringify(b.content), error: b.is_error === true });
+        break;
+      }
+      case "control_response": {
+        const r = ev.response ?? {};
+        if (typeof r.request_id === "string" && r.request_id.startsWith("ctx-") && r.subtype === "success") {
+          const c = r.response ?? {};
+          const status: Record<string, unknown> = {};
+          if (typeof c.maxTokens === "number") status["contextWindow"] = c.maxTokens;
+          if (typeof c.totalTokens === "number") status["contextTokens"] = c.totalTokens;
+          if (typeof c.model === "string") { this.model = c.model; status["model"] = c.model; }
+          if (Object.keys(status).length) this.emit({ type: "status", status });
+        }
         break;
       }
       case "control_request": {
