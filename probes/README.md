@@ -1,7 +1,9 @@
 # Phase 0 probes
 
-Disposable TypeScript probes for the items of `ARCHITECTURE.md` §19 "Phase 0", run on
-2026-09-07. Each writes `probes/out/<name>/events.log`, `summary.json` and the raw vendor
+Disposable TypeScript probes for the Phase 0 items of the tenth architecture revision,
+`docs/history/ARCHITECTURE_V10.md`, run on 2026-09-07; their results are the measured
+bullets of `ARCHITECTURE.md` §16. Section numbers in the probe comments refer to that
+tenth revision. Each writes `probes/out/<name>/events.log`, `summary.json` and the raw vendor
 streams; `sanitize-fixtures.ts` copies scrubbed recordings into `fixtures/`. Run with
 `node probes/<file>` on Node 22.18 or later. Live probes spend the user's Claude and
 Codex quotas and build throwaway repositories under `~/.local/state/chatroom-probes/`.
