@@ -1,8 +1,9 @@
 # Chatroom
 
 A terminal group chat for one user and two coding agents, Clara (Claude Code) and Phil
-(Codex), sharing one repository through per-agent worktrees. The architecture is accepted
-and Phase 0 (the vendor probes) is done; `src/` does not exist yet.
+(Codex), sharing one repository through per-agent worktrees. The architecture is the
+eleventh revision and the code under `src/` implements it; `bin/chatroom.js` is the
+command.
 
 ## Where things are
 
@@ -46,14 +47,15 @@ and Phase 0 (the vendor probes) is done; `src/` does not exist yet.
 ## Verification
 
 Code gate: `npm run typecheck` (strict TypeScript, `erasableSyntaxOnly` because the code
-runs through Node's type stripping without a build step) and `npm test` once `src/` has
-tests. The model-free probe `07-recovery` reruns in seconds and must stay green.
+runs through Node's type stripping without a build step) and `npm test` (model-free,
+under ten seconds). `chatroom doctor --live` is the live end-to-end check; it spends
+both quotas and needs a git repository to run in. The model-free probe `07-recovery`
+must also stay green.
 The document gate is the set of shell checks in `docs/STATUS.md` under "Document checks":
 dangling section references, guard index versus guard blocks, leftover em-dashes, stale
 terms. Run them after any edit to `ARCHITECTURE.md`.
 
 ## Next
 
-Phase 1 of `ARCHITECTURE.md` §19, the room core, on the layout of §18. `docs/STATUS.md`
-holds the resume point, what the rewrite removed and why, and the findings left to the
-user.
+Real use. `docs/STATUS.md` holds the resume point, what the rewrite removed and why,
+and how to run the command.

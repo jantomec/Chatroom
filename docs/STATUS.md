@@ -14,9 +14,14 @@ Updated 2026-09-07.
   under `probes/fixtures/`. The one open sub-item is the interactive comparison of the
   status bar's context figure with each harness's own display, which needs the user at a
   terminal.
-- The TypeScript project is scaffolded (`package.json`, `tsconfig.json`, strict, Node type
-  stripping, no build step). `src/` does not exist yet. The Codex reviewer has not seen
-  the eleventh revision.
+- The application is implemented under `src/` (2026-09-07): the log, the room, the
+  agent commands and IPC, both drivers with the `exec` fallback, the git operations with
+  recovery, the REPL with the status bar, the doctor, and the `chatroom` command. Tests:
+  `npm test` (31 model-free tests: log, addressing, room with fake drivers and crash
+  injection, IPC, git matrix). The live end-to-end check is `chatroom doctor --live`,
+  which runs one scripted turn per agent in a throwaway conversation and verifies the
+  boundary, native commits, a mid-turn message and the status sources. The Codex
+  reviewer has not seen the eleventh revision or the code.
 
 ## What the rewrite removed, and why
 
@@ -50,16 +55,37 @@ norms and its four orchestrator behaviours, the names.
   authorized one rerun; under the profile the rerun still failed, under legacy
   `workspace-write` an approved escalated commit ran unsandboxed. The unauthorized case
   was not measured. G4 stands unless the user says otherwise.
-- Whether the two harness homes stay denied for reading or become a sentence in the
-  brief (§20 item 4).
-- Whether to delete the probe labs under `~/.local/state/chatroom-probes/`.
+- Both remaining questions were answered on 2026-09-07 with simplicity as the rule: the
+  harness homes are a sentence in the brief, not a deny rule, and the probe labs were
+  deleted; the fixtures hold everything.
 
 ## Resume point
 
-Phase 1 of `ARCHITECTURE.md` §19: the room core on the layout of §18, model-free, with
-fake drivers and crash injection at every append. Before writing it, read §5 (the log)
-and §11.3 (the protocol's four behaviours); the probe clients under `probes/lib/` show
-the wire shapes for both harnesses when Phase 2 comes.
+Use it. `npm link` in the repository puts `chatroom` on the PATH; run it inside a git
+repository. What is not done: `chatroom doctor --live` is the only live test, so the
+first real conversations are the test of the drivers' event handling; the REPL's status
+bar has been exercised only through its unit-free rendering code; sync conflict
+resolution is `/sync --abort` only (§1.1). Known simplifications taken while coding, all
+recorded in the document: drop and scratch directories are per agent, not per turn; the
+lock is a pid file; a bad log line is skipped in place.
+
+## Using it
+
+```sh
+npm install && npm link          # once; `npm unlink -g chatroom` removes it
+cd <your repository>
+chatroom doctor                  # executables, logins, git, sandbox
+chatroom                         # opens the conversation "default"
+```
+
+Inside: plain text goes to both agents, `@clara` or `@phil` to one, `/help` lists the
+commands. `chatroom doctor --live` passed 17 of 17 on 2026-09-07 in a scratch
+repository (both agents replied, the mid-turn message reached both, own-worktree writes
+landed, main, the peer worktree and the IPC directory stayed untouched, each agent
+committed on its own branch only, main did not move, and the status bar had model,
+effort, context tokens and window for both); one run takes about three minutes and two
+turns per harness. The log is `.chatroom/conversations/<name>/log.jsonl`; `chatroom log` prints
+it. Worktrees live under `~/.local/state/chatroom/<project>/worktrees/<name>/`.
 
 ## How the design was produced
 

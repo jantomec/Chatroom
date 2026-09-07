@@ -4,7 +4,8 @@ Status: implementation baseline, 2026-09-07, after Phase 0. The vendor probes un
 `probes/` settled every claim in §16 about Claude Code 2.1.263, Codex CLI 0.153.3, Node
 22.23.2, 24.20.0 and 25.1.0, and git 2.54.0 (Homebrew) and 2.50.1 (Apple), both on `PATH`
 on the development machine. Versions are evidence for the smoke tests, not compatibility
-promises. No application code exists yet.
+promises. The code under `src/` implements this document; `chatroom doctor --live` is the
+end-to-end check of §9.5.
 
 How to read this document: **Guards** (§0.2) are decisions the user made; reversing one
 needs the user's approval. **Measured** marks a fact taken from a probe or a scratch
@@ -149,8 +150,8 @@ a project id, and takes the **main worktree** from `git worktree list` as the en
 git directory is the common directory. Bare repositories are refused. The conversation
 lives in the main worktree whichever checkout `chatroom` was started from, so the user's
 own linked worktrees share it. Chatroom refuses to start from one of its own worktrees.
-One process at a time per project, held by an advisory lock on an open file descriptor
-in the state directory.
+One process at a time per project, held by a lock file in the state directory that
+names the running pid; a lock whose process is gone is stale and taken over.
 
 ### 4.2 Files
 
@@ -170,9 +171,9 @@ in the state directory.
   lock
   worktrees/<name>/{claude,codex,integration}       linked worktrees, one set per conversation
   ipc/<name>/{claude,codex}/
-    from-agent/<turn-id>/                           the agent's drop directory for one turn
+    from-agent/                                     the agent's drop directory, cleared between turns
     to-agent/deliveries/, to-agent/receipts/        written by the orchestrator, read by the agent
-    scratch/<turn-id>/                              per-turn temp directory, exported as TMPDIR
+    scratch/                                        the agent's temp directory, exported as TMPDIR
   hooks-empty/                                      empty directory used as core.hooksPath
 ```
 
@@ -219,8 +220,8 @@ to verify against; `chatroom log` prints the file, `chatroom log --json` prints 
 One append per accepted fact, `fsync` after the write, then the REPL shows it and the
 scheduler acts on it. Facts that must land together are one line: a message carries its
 targets; a turn start carries its input ids. On startup the orchestrator reads the log
-once; a last line that does not parse is a crash mid-write, and it is dropped after a
-`note` line says so with the bytes it dropped. Duplicate operation ids are rejected by
+once; a line that does not parse is a crash mid-write, and it is skipped, left in place,
+and named in a `note` line appended at startup. Duplicate operation ids are rejected by
 the set of ids the fold produces. The log is never rewritten. The two id files next to it
 are written by temp-file-and-rename.
 
@@ -330,14 +331,16 @@ plus:
 | `CHATROOM_AGENT` | harness id, `claude` or `codex` |
 | `CHATROOM_HANDLE` | the agent's name in the chat, `clara` or `phil` |
 | `CHATROOM_CONVERSATION` | conversation name |
-| `CHATROOM_TURN` | turn id |
-| `CHATROOM_OPERATION_DIR` | absolute drop directory for this turn, agent-writable |
+| `CHATROOM_OPERATION_DIR` | absolute drop directory, agent-writable, cleared between turns |
 | `CHATROOM_DELIVERY_DIR`, `CHATROOM_RECEIPT_DIR` | absolute orchestrator-owned directories, agent-readable |
-| `CHATROOM_SCRATCH` | absolute per-turn temp directory, also exported as `TMPDIR` |
+| `CHATROOM_SCRATCH` | absolute temp directory, also exported as `TMPDIR` |
+| `CHATROOM_ASK_TIMEOUT` | seconds `ask` waits, from `ask.timeout_seconds` |
 | `CHATROOM_BIN` | absolute path of the running executable |
 | `GIT_OPTIONAL_LOCKS` | `0`: read-only git commands do not rewrite an index |
 
-Removing the Anthropic variables is what keeps Claude on the subscription. The rest is a
+The directories are per agent, not per turn, because Claude's process is long-lived and
+its environment is fixed when it starts; the orchestrator clears the drop and scratch
+directories when a turn ends. Removing the Anthropic variables is what keeps Claude on the subscription. The rest is a
 cheap default and the only environment filter there is: measured on Codex 0.153.3,
 `shell_environment_policy` (`inherit = "none"`, `ignore_default_excludes = false`, a
 `filters` exclude) removed nothing from the commands' environment, while its `set` map
@@ -355,7 +358,7 @@ in a touched peer worktree rewrites that worktree's index without it and not wit
 ```
 
 The command writes a temporary file in `CHATROOM_OPERATION_DIR`, syncs it and renames it
-to `<op>.json`. The orchestrator polls the drop directories of active turns, imports each
+to `<op>.json`. The orchestrator polls the drop directories while a turn is active, imports each
 file once by its op, appends the message or the acknowledgement, and writes a receipt
 `{"op":"…","status":"accepted","message":42}` under `to-agent/receipts/` the same way. A
 file that does not parse is renamed to `<name>.rejected` and noted in the log. `chatroom
@@ -736,7 +739,7 @@ Passed as inline `--settings` JSON, measured on 2.1.263 as a whole (`probes/03f`
                     "<git common dir>/refs/heads/chatroom/<name>/codex",
                     "<git common dir>/refs/heads/chatroom/<name>/integration",
                     "<git common dir>/packed-refs"],
-      "denyRead":  ["~/.claude", "~/.codex", "<ipc dir>/codex"]
+      "denyRead":  ["<ipc dir>/codex"]
     }
   },
   "permissions": {
@@ -744,8 +747,7 @@ Passed as inline `--settings` JSON, measured on 2.1.263 as a whole (`probes/03f`
       "Edit(//<peer worktree>/**)",        "Write(//<peer worktree>/**)",
       "Edit(//<integration worktree>/**)", "Write(//<integration worktree>/**)",
       "Edit(//<ipc dir>/codex/**)",        "Write(//<ipc dir>/codex/**)",
-      "Edit(//<ipc dir>/claude/to-agent/**)", "Write(//<ipc dir>/claude/to-agent/**)",
-      "Read(//~/.claude/**)", "Read(//~/.codex/**)"
+      "Edit(//<ipc dir>/claude/to-agent/**)", "Write(//<ipc dir>/claude/to-agent/**)"
     ]
   },
   "hooks": { "…": "§9.2" }
@@ -771,9 +773,11 @@ Passed as inline `--settings` JSON, measured on 2.1.263 as a whole (`probes/03f`
   the brief's "never write there", as in solo use, and shell writes into the main tree
   stay blocked by the sandbox's default scope. The peer and integration worktrees and the
   chatroom's IPC directories keep their rules; none of them sits above the git directory.
-- **The two harness homes** are the one read the chatroom exposes that solo use does not:
-  they hold every other project's transcripts, and here a second model could read them.
-  Nothing else is denied for reading; the agent knows on its own what it should not read.
+- **Reads** are not denied, except the peer's IPC directory, which is the chatroom's own
+  state. The two harness homes hold every other project's transcripts, and a second model
+  reading them is the one exposure the chatroom creates that solo use does not; the brief
+  says not to read them, and that is the whole mechanism (G2). The agent knows on its own
+  what else it should not read.
 - **Subagents** share the process, rules and sandbox. Network, web tools and MCP servers
   are as the user configured them.
 
@@ -799,8 +803,6 @@ set = { TMPDIR = "<scratch dir>", GIT_OPTIONAL_LOCKS = "0" }
 "<git common dir>/logs/refs/heads/chatroom/<name>/codex"      = "write"
 "<git common dir>/logs/refs/heads/chatroom/<name>/codex.lock" = "write"
 "<ipc dir>/claude"                                 = "deny"
-"~/.claude"                                        = "deny"
-"~/.codex"                                         = "deny"
 ```
 
 Measured on 0.153.3, under `codex sandbox` and through app-server: without the six git
@@ -823,7 +825,7 @@ approved escalated commit ran unsandboxed and moved only the own branch), and
 
 ### 12.3 What is deliberately not here
 
-No read allowlist, no secret-path lists beyond the two harness homes, no operating modes,
+No read allowlist, no secret-path lists, no operating modes,
 no network allowlist, no hosted-tool disabling, no escalation policy, no commit broker,
 no clones. The user runs these harnesses with the same exposure every day (G1).
 
@@ -1332,8 +1334,8 @@ rendering polish.
    worktree and the chatroom commits, versus an agent turn.
 3. Changing an agent's model or effort from the REPL; both harnesses accept it, the
    status bar already shows what is in force.
-4. Whether the two harness homes should stay denied for reading, or whether that too is
-   a sentence in the brief (G2).
+4. Decided 2026-09-07 for simplicity: the harness homes are a sentence in the brief, not
+   a deny rule.
 
 ---
 

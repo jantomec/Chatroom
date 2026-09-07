@@ -9,11 +9,16 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"src/**/*.test.ts\"",
-    "probe": "node probes/run.ts"
+    "test": "node --test \"src/**/*.test.ts\""
   },
   "devDependencies": {
     "@types/node": "^24",
     "typescript": "^5.9"
+  },
+  "dependencies": {
+    "smol-toml": "^1.8.0"
+  },
+  "bin": {
+    "chatroom": "bin/chatroom.js"
   }
 }
