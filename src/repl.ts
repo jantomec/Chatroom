@@ -2,6 +2,7 @@
 // cursor was, a bordered input box and the status lines sit right under it, and once the
 // screen is full the box stays at the bottom while the transcript scrolls above it, the
 // way Claude Code's screen behaves. Raw keystrokes, a scroll region, no library.
+import { appendFileSync } from "node:fs";
 import type { Agent } from "./log.ts";
 import { AGENTS, type Room } from "./room.ts";
 import { shortPath } from "./git.ts";
@@ -74,6 +75,11 @@ export class Repl {
   private ownsScreen = false;           // true once nothing but the chatroom is on screen (the region has scrolled, or the screen was redrawn)
   private resizing: NodeJS.Timeout | null = null;   // set while resize events are still arriving
   private banner: string | null = null;             // one line under the status lines, e.g. an available update
+  /** With CHATROOM_TUI_TRACE=<file>, append one line per screen operation: the geometry and what caused it. */
+  private trace(kind: string, extra = ""): void {
+    const f = process.env["CHATROOM_TUI_TRACE"]; if (!f) return;
+    try { appendFileSync(f, `${new Date().toISOString().slice(11, 23)} ${kind} contentRow=${this.contentRow} rows=${this.rows} cols=${this.cols} out=${this.out.rows}x${this.out.columns} h=${this.footerHeight()} text=${this.text.length} cursor=${this.cursor} ${extra}\n`); } catch { /* tracing never fails the session */ }
+  }
   /** Every write to the terminal goes through here; a failure (EIO, EPIPE) ends the session quietly. */
   private write(s: string): void {
     if (this.dead) return;
@@ -116,6 +122,7 @@ export class Repl {
     const styled = kept.flatMap((l) => this.wrap(l, this.cols));
     if (!this.started) { this.write(styled.join("\n") + "\n"); return; }
     const maxRow = this.rows - this.footerHeight();
+    this.trace("print", `lines=${styled.length} first=${JSON.stringify(lines[0]?.slice(0, 40))}`);
     let s = `${ESC}?25l`;
     for (const l of styled) {
       if (this.contentRow > maxRow) { s += `${ESC}${maxRow};1H\n${ESC}2K` + l; this.ownsScreen = true; }   // the region scrolls
@@ -194,6 +201,7 @@ export class Repl {
     if (!this.tty) return;
     this.rows = this.out.rows ?? 24; this.cols = this.out.columns ?? 80;
     const maxRow = this.rows - this.footerHeight();
+    this.trace("layout", `maxRow=${maxRow}`);
     let s = `${ESC}1;${maxRow}r`;
     while (this.contentRow > maxRow + 1) { s += `${ESC}${maxRow};1H\n`; this.contentRow--; this.ownsScreen = true; }
     this.write(s);
@@ -204,6 +212,7 @@ export class Repl {
    *  events stop, then redraw the screen once from the kept transcript. */
   private onResize(): void {
     if (!this.started || this.closed) return;
+    this.trace("resize");
     if (!this.resizing) this.write(`${ESC}?25l`);
     else clearTimeout(this.resizing);
     this.resizing = setTimeout(() => { this.resizing = null; this.redrawScreen(); }, 120);
@@ -232,6 +241,7 @@ export class Repl {
     if (h !== this.lastFooterHeight && this.lastFooterHeight !== 0) { this.lastFooterHeight = h; this.layout(); return; }
     this.lastFooterHeight = h;
     const top = Math.min(this.contentRow, this.rows - h + 1); const w = this.cols;
+    this.trace("footer", `top=${top}`);
     const fit = (s: string) => { const v = visibleLength(s); return v > w ? cutVisible(s, Math.max(0, w - 1)) + "…" + RESET : s + " ".repeat(w - v); };
     const { rows, cursorRow, cursorCol } = this.inputRows();
     const first = Math.max(0, Math.min(cursorRow - 7, rows.length - 8));
@@ -291,6 +301,7 @@ export class Repl {
     });
     this.contentRow = Math.max(1, Math.min(row, this.rows));
     this.started = true;
+    this.trace("start", `reply=${row}`);
     this.layout();
   }
   private startPlain(): void {
@@ -320,6 +331,7 @@ export class Repl {
   /** Decode raw terminal bytes into keys; the terminal's escape sequences are parsed here, not by readline. */
   private feed(chunk: Buffer): void {
     if (this.closed) return;
+    this.trace("input", JSON.stringify(chunk.toString("utf8")));
     let buf = Buffer.concat([this.pending, chunk]); this.pending = Buffer.alloc(0);
     let text = buf.toString("utf8");
     // keep an incomplete multibyte character for the next chunk
