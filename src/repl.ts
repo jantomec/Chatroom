@@ -23,6 +23,17 @@ const RESET = `${ESC}0m`, DIM = `${ESC}2m`, BOLD = `${ESC}1m`;
 const FG: Record<string, string> = { claude: `${ESC}38;5;209m`, codex: `${ESC}38;5;78m`, user: `${ESC}38;5;75m`, chatroom: `${ESC}38;5;141m`, green: `${ESC}32m`, yellow: `${ESC}33m`, red: `${ESC}31m`, cyan: `${ESC}36m` };
 const BADGE: Record<string, string> = { claude: `${ESC}48;5;209m${ESC}30m`, codex: `${ESC}48;5;78m${ESC}30m`, user: `${ESC}48;5;75m${ESC}30m`, chatroom: `${ESC}48;5;141m${ESC}30m` };
 const visibleLength = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "").length;
+/** The first `n` visible characters of a styled string, its color codes kept. */
+function cutVisible(s: string, n: number): string {
+  let out = "", seen = 0, i = 0;
+  while (i < s.length) {
+    const m = /^\x1b\[[0-9;]*m/.exec(s.slice(i));
+    if (m) { out += m[0]; i += m[0].length; continue; }
+    if (seen >= n) break;
+    out += s[i]; seen++; i++;
+  }
+  return out;
+}
 
 /** A path with $HOME as ~ and its middle components elided first when it is long. */
 export function elidePath(p: string, max = 34): string {
@@ -59,13 +70,16 @@ export class Repl {
   private lastCtrlC = 0;
   private lastFooterHeight = 0;
   private dead = false;                 // the terminal went away: write nothing more
+  private transcript: string[] = [];    // every transcript line printed, styled but not wrapped: the source for a redraw
+  private ownsScreen = false;           // true once nothing but the chatroom is on screen (the region has scrolled, or the screen was redrawn)
+  private resizing: NodeJS.Timeout | null = null;   // set while resize events are still arriving
   /** Every write to the terminal goes through here; a failure (EIO, EPIPE) ends the session quietly. */
   private write(s: string): void {
     if (this.dead) return;
     try { this.out.write(s); } catch { this.dead = true; void this.quit(); }
   }
   private onData = (chunk: Buffer) => this.feed(chunk);
-  private resize = () => this.layout();
+  private resize = () => this.onResize();
   private pending = Buffer.alloc(0);
   private pasting: string | null = null;
 
@@ -88,12 +102,16 @@ export class Repl {
     if (isActivity && this.show === "quiet") return;
     if (isActivity && this.show === "activity" && /thinks:/.test(lines[0] ?? "")) return;
     if (!this.tty) { this.write(lines.join("\n") + "\n"); return; }
-    const styled = lines.map((l) => this.style(l)).flatMap((l) => this.wrap(l, this.cols));
+    const kept = lines.map((l) => this.style(l));
+    this.transcript.push(...kept);
+    if (this.transcript.length > 4000) this.transcript.splice(0, this.transcript.length - 4000);
+    if (this.resizing) return;                                   // the redraw after the resize prints it
+    const styled = kept.flatMap((l) => this.wrap(l, this.cols));
     if (!this.started) { this.write(styled.join("\n") + "\n"); return; }
     const maxRow = this.rows - this.footerHeight();
     let s = `${ESC}?25l`;
     for (const l of styled) {
-      if (this.contentRow > maxRow) s += `${ESC}${maxRow};1H\n${ESC}2K` + l;          // the region scrolls
+      if (this.contentRow > maxRow) { s += `${ESC}${maxRow};1H\n${ESC}2K` + l; this.ownsScreen = true; }   // the region scrolls
       else { s += `${ESC}${this.contentRow};1H${ESC}2K` + l; this.contentRow++; }
     }
     this.write(s);
@@ -132,9 +150,9 @@ export class Repl {
       const first = rows.length === 0;
       const avail = first ? width : width - indent.length;
       if (plain.length - start <= avail) { rows.push(render(start, plain.length, first) + pending); break; }
-      let cut = plain.lastIndexOf(" ", start + avail);
-      cut = cut <= start ? start + avail : cut + 1;
-      rows.push(render(start, cut, first)); start = cut;
+      const space = plain.lastIndexOf(" ", start + avail);
+      if (space > start) { rows.push(render(start, space, first)); start = space + 1; }   // the space itself is dropped
+      else { rows.push(render(start, start + avail, first)); start += avail; }
     }
     return rows;
   }
@@ -170,18 +188,44 @@ export class Repl {
     this.rows = this.out.rows ?? 24; this.cols = this.out.columns ?? 80;
     const maxRow = this.rows - this.footerHeight();
     let s = `${ESC}1;${maxRow}r`;
-    while (this.contentRow > maxRow + 1) { s += `${ESC}${maxRow};1H\n`; this.contentRow--; }
+    while (this.contentRow > maxRow + 1) { s += `${ESC}${maxRow};1H\n`; this.contentRow--; this.ownsScreen = true; }
+    this.write(s);
+    this.drawFooter();
+  }
+  /** A resize: the terminal has already reflowed what was on screen, so row positions are stale and
+   *  every redraw during a drag would leave another copy of the box behind. Draw nothing until the
+   *  events stop, then redraw the screen once from the kept transcript. */
+  private onResize(): void {
+    if (!this.started || this.closed) return;
+    if (!this.resizing) this.write(`${ESC}?25l`);
+    else clearTimeout(this.resizing);
+    this.resizing = setTimeout(() => { this.resizing = null; this.redrawScreen(); }, 120);
+  }
+  private redrawScreen(): void {
+    if (this.closed || this.dead) return;
+    this.rows = this.out.rows ?? 24; this.cols = this.out.columns ?? 80;
+    const h = this.footerHeight(); this.lastFooterHeight = h;
+    const maxRow = Math.max(1, this.rows - h);
+    const shown: string[] = [];
+    for (let i = this.transcript.length - 1; i >= 0 && shown.length < maxRow; i--) shown.unshift(...this.wrap(this.transcript[i]!, this.cols));
+    const tail = shown.slice(-maxRow);
+    let s = `${ESC}?25l${ESC}r`;
+    if (!this.ownsScreen) s += `${ESC}${this.rows};1H` + "\n".repeat(this.rows);   // what the shell printed before stays reachable in the scrollback
+    s += `${ESC}2J`;
+    for (const [i, l] of tail.entries()) s += `${ESC}${i + 1};1H` + l;
+    s += `${ESC}1;${maxRow}r`;
+    this.contentRow = tail.length + 1; this.ownsScreen = true;
     this.write(s);
     this.drawFooter();
   }
   redraw(): void { if (this.tty) this.drawFooter(); }
   private drawFooter(): void {
-    if (this.closed) return;
+    if (this.closed || this.resizing) return;
     const h = this.footerHeight();
     if (h !== this.lastFooterHeight && this.lastFooterHeight !== 0) { this.lastFooterHeight = h; this.layout(); return; }
     this.lastFooterHeight = h;
     const top = Math.min(this.contentRow, this.rows - h + 1); const w = this.cols;
-    const fit = (s: string) => { const v = visibleLength(s); return v > w ? s.slice(0, Math.max(0, w - 1)) + "…" : s + " ".repeat(w - v); };
+    const fit = (s: string) => { const v = visibleLength(s); return v > w ? cutVisible(s, Math.max(0, w - 1)) + "…" + RESET : s + " ".repeat(w - v); };
     const { rows, cursorRow, cursorCol } = this.inputRows();
     const first = Math.max(0, Math.min(cursorRow - 7, rows.length - 8));
     const shown = rows.slice(first, first + 8);
@@ -369,6 +413,7 @@ export class Repl {
     setTimeout(() => process.exit(1), 8000).unref();   // whatever close() does, the process ends
     if (this.tty) {
       this.inp.off("data", this.onData); this.out.off("resize", this.resize);
+      if (this.resizing) { clearTimeout(this.resizing); this.resizing = null; }
       try { this.inp.setRawMode(false); } catch { /* not a tty */ }
       try { this.inp.pause(); } catch { /* gone */ }
       if (!this.dead) this.write(`${ESC}?2004l${ESC}r${ESC}${this.rows};1H${ESC}?25h\n`);

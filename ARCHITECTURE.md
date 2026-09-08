@@ -972,7 +972,11 @@ bordered input box and the status lines stay at the bottom, drawn with a termina
 region and raw keystrokes, never the alternate screen. Plain input is a user message; a
 backslash at the end of a line continues it on the next; ctrl-C clears the input, or
 quits when pressed twice on an empty box; relayed prompts get short ids and are answered
-asynchronously. Without a terminal, input is read line by line and output is plain text.
+asynchronously. A resize reaches the chatroom after the terminal has reflowed the screen,
+so row positions are stale and a redraw per event would leave a copy of the box behind
+each time; the chatroom draws nothing until the events stop, then redraws the screen once
+from its own copy of the transcript, wrapped at the new width. Without a terminal, input
+is read line by line and output is plain text.
 
 ```text
 #42 phil → @clara                                         10:07  post

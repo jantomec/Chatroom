@@ -82,7 +82,8 @@ Inside: plain text goes to both agents, `@clara` or `@phil` to one, `/help` list
 commands; Shift-Enter, Option-Enter, Ctrl-J or a trailing backslash add a line, Option
 with the arrows moves by word, ctrl-C twice quits. The screen is Claude Code's shape:
 the transcript flows from the top, the input box and the status lines follow it, and
-the badges, the context bars and the wrapping are as in Claude Code. When an exchange
+the badges, the context bars and the wrapping are as in Claude Code; resizing the window
+redraws the screen once the drag ends, wrapped at the new width. When an exchange
 between the agents pauses, the last speaker posts a summary to the user (§7). `chatroom doctor --live` passed 17 of 17 on 2026-09-07 in a scratch
 repository (both agents replied, the mid-turn message reached both, own-worktree writes
 landed, main, the peer worktree and the IPC directory stayed untouched, each agent
