@@ -28,6 +28,9 @@ export interface NoteRecord extends Base { kind: "note"; text: string; [k: strin
 export type LogRecord = MessageRecord | TurnRecord | MarkerRecord | SessionRecord | GitRecord | RefRecord | PermissionRecord | BudgetRecord | StatusRecord | NoteRecord;
 export type NewRecord = { [K in LogRecord["kind"]]: Omit<Extract<LogRecord, { kind: K }>, "id" | "at"> }[LogRecord["kind"]];
 
+/** A record's time as the local clock shows it, HH:MM. */
+export function clock(at: string): string { const d = new Date(at); const p = (n: number) => String(n).padStart(2, "0"); return `${p(d.getHours())}:${p(d.getMinutes())}`; }
+
 export class Log {
   readonly path: string;
   readonly records: LogRecord[] = [];

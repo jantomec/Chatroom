@@ -17,6 +17,7 @@ export interface ReplOptions {
   command: (line: string) => Promise<boolean | string>;   // slash commands; true handled, false unknown, string = reply
   onQuit: () => Promise<void>;
   input?: NodeJS.ReadStream; output?: NodeJS.WriteStream;
+  traceFile?: string;                                     // screen trace, one line per operation; CHATROOM_TUI_TRACE overrides
 }
 
 const ESC = "\x1b[";
@@ -75,10 +76,10 @@ export class Repl {
   private ownsScreen = false;           // true once nothing but the chatroom is on screen (the region has scrolled, or the screen was redrawn)
   private resizing: NodeJS.Timeout | null = null;   // set while resize events are still arriving
   private banner: string | null = null;             // one line under the status lines, e.g. an available update
-  /** With CHATROOM_TUI_TRACE=<file>, append one line per screen operation: the geometry and what caused it. */
+  /** Append one line per screen operation to the trace file: the geometry and what caused it. */
   private trace(kind: string, extra = ""): void {
-    const f = process.env["CHATROOM_TUI_TRACE"]; if (!f) return;
-    try { appendFileSync(f, `${new Date().toISOString().slice(11, 23)} ${kind} contentRow=${this.contentRow} rows=${this.rows} cols=${this.cols} out=${this.out.rows}x${this.out.columns} h=${this.footerHeight()} text=${this.text.length} cursor=${this.cursor} ${extra}\n`); } catch { /* tracing never fails the session */ }
+    const f = process.env["CHATROOM_TUI_TRACE"] ?? this.opts.traceFile; if (!f) return;
+    try { appendFileSync(f, `${new Date().toISOString().slice(11, 23)} ${kind} contentRow=${this.contentRow} rows=${this.rows} cols=${this.cols} out=${this.out.rows}x${this.out.columns} h=${this.footerHeight()} text=${this.text.length} cursor=${this.cursor} owns=${this.ownsScreen} resizing=${this.resizing !== null} closed=${this.closed} ${extra}\n`); } catch { /* tracing never fails the session */ }
   }
   /** Every write to the terminal goes through here; a failure (EIO, EPIPE) ends the session quietly. */
   private write(s: string): void {
@@ -102,7 +103,7 @@ export class Repl {
   setBanner(text: string): void {
     if (this.closed) return;
     if (!this.tty) { this.write(text + "\n"); return; }
-    this.banner = text; this.drawFooter();
+    this.banner = text; this.trace("banner"); this.drawFooter();
   }
   private badge(who: string): string { const key = who === this.opts.names.claude ? "claude" : who === this.opts.names.codex ? "codex" : who; return `${BADGE[key] ?? BADGE["chatroom"]} ${who} ${RESET}`; }
 
@@ -225,6 +226,7 @@ export class Repl {
     const shown: string[] = [];
     for (let i = this.transcript.length - 1; i >= 0 && shown.length < maxRow; i--) shown.unshift(...this.wrap(this.transcript[i]!, this.cols));
     const tail = shown.slice(-maxRow);
+    this.trace("redraw", `tail=${tail.length} maxRow=${maxRow}`);
     let s = `${ESC}?25l${ESC}r`;
     if (!this.ownsScreen) s += `${ESC}${this.rows};1H` + "\n".repeat(this.rows);   // what the shell printed before stays reachable in the scrollback
     s += `${ESC}2J`;

@@ -1,7 +1,7 @@
 // The room: a fold over the log, addressing and the budget, the scheduler, turns, and the
 // collaboration protocol's four behaviours (ARCHITECTURE.md §6, §7, §10, §11.3).
 import { formatDelivery, parseMarker, resolveTargets, type Marker } from "./brief.ts";
-import type { Agent, Log, LogRecord, MessageRecord, Participant } from "./log.ts";
+import { clock, type Agent, type Log, type LogRecord, type MessageRecord, type Participant } from "./log.ts";
 import type { Config, Driver, DriverEvent, Status } from "./types.ts";
 
 export type TaskState = "open" | "done_claimed" | "accepted" | "waiting_user" | "escalated";
@@ -206,7 +206,7 @@ export class Room {
   private renderMessage(m: MessageRecord): string {
     const to = m.to.map((t) => "@" + this.handle(t)).join(" ");
     const tag = m.held ? " (held)" : "";
-    return `#${m.id} ${this.handle(m.from)} → ${to}  ${m.at.slice(11, 16)}  ${m.via ?? ""}${tag}\n  ${m.body.split("\n").join("\n  ")}`;
+    return `#${m.id} ${this.handle(m.from)} → ${to}  ${clock(m.at)}  ${m.via ?? ""}${tag}\n  ${m.body.split("\n").join("\n  ")}`;
   }
 
   /** The task a message belongs to: the marker's #t, else the reply chain's user message, else none. */

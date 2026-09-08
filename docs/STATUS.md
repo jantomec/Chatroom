@@ -98,7 +98,9 @@ landed, main, the peer worktree and the IPC directory stayed untouched, each age
 committed on its own branch only, main did not move, and the status bar had model,
 effort, context tokens and window for both); one run takes about three minutes and two
 turns per harness. The log is `.chatroom/conversations/<name>/log.jsonl`; `chatroom log` prints
-it. Worktrees live under `~/.local/state/chatroom/<project>/worktrees/<name>/`.
+it. Next to it, `tui.log` records every screen operation of the current session (the row
+the box was drawn at, the terminal size, the bytes each key sent), rewritten at each
+start; it is what to send when the screen looks wrong. Worktrees live under `~/.local/state/chatroom/<project>/worktrees/<name>/`.
 
 ## How the design was produced
 

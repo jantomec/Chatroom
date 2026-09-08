@@ -12,7 +12,7 @@ import { liveScript, staticChecks } from "./drivers/doctor.ts";
 import { agentVars, scrubEnv } from "./drivers/env.ts";
 import { Repo, Workspaces, resolveProject, shortPath, type Conversation, type Project } from "./git.ts";
 import { Ipc, agentCommand, agentEnv, participantsFromHandles } from "./ipc.ts";
-import { Log, type Agent, type MessageRecord } from "./log.ts";
+import { Log, clock, type Agent, type MessageRecord } from "./log.ts";
 import { Repl } from "./repl.ts";
 import { AGENTS, Room } from "./room.ts";
 import { CONFIG_DEFAULTS, type Config } from "./types.ts";
@@ -215,7 +215,9 @@ class Session {
     const { config, project } = this.ctx;
     for (const n of this.ws.recover()) this.print(`  · recovery: ${n}`);
     this.ws.refresh();
+    const traceFile = join(this.dir, "tui.log"); try { writeFileSync(traceFile, ""); } catch { /* unwritable: no trace */ }
     this.repl = new Repl({
+      traceFile,
       room: this.room, names: config.names, statusBar: config.statusBar,
       bar: () => this.barInfo(),
       command: (line) => this.command(line),
@@ -235,7 +237,7 @@ class Session {
     this.print(`chatroom · conversation "${this.name}" · ${shortPath(project.mainWorktree)} · ${config.names.claude} (Claude) and ${config.names.codex} (Codex) · /help for commands`);
     if (this.conv.rootCommit) this.print(`the repository had no commits, so an empty first commit ${this.conv.rootCommit.slice(0, 7)} was made on ${project.mainBranch} as the base; files you have not committed stay invisible to the agents, as always`);
     const recent = [...this.room.state.messages.values()].slice(-5);
-    for (const m of recent) this.print(`#${m.id} ${config.names[m.from as Agent] ?? m.from} → ${m.to.map((t) => "@" + (config.names[t as Agent] ?? t)).join(" ")}  ${m.at.slice(11, 16)}  ${m.via ?? ""}\n  ${m.body.split("\n").join("\n  ")}`);
+    for (const m of recent) this.print(`#${m.id} ${config.names[m.from as Agent] ?? m.from} → ${m.to.map((t) => "@" + (config.names[t as Agent] ?? t)).join(" ")}  ${clock(m.at)}  ${m.via ?? ""}\n  ${m.body.split("\n").join("\n  ")}`);
     this.poll = setInterval(() => { void this.pollIpc(); }, 150);
     void this.room.warm().then(() => this.repl?.redraw());
     void commitsBehind().then((n) => { if (n > 0) this.repl?.setBanner(`update available: ${n} commit${n === 1 ? "" : "s"} behind · run chatroom update`); });
@@ -294,7 +296,7 @@ class Session {
       case "tasks": return this.tasksText();
       case "reply": { const id = Number(args[0]); const m = room.state.messages.get(id); if (!m) return `no message #${args[0]}`; await room.postUser(args.slice(1).join(" "), [m.from], id); return true; }
       case "show": { const l = args[0] as "quiet" | "activity" | "full"; if (!["quiet", "activity", "full"].includes(l)) return "usage: /show quiet|activity|full"; this.repl?.setShow(l); return `showing ${l}`; }
-      case "history": { const n = Number(args[0] ?? 20); return [...room.state.messages.values()].slice(-n).map((m) => `#${m.id} ${names[m.from as Agent] ?? m.from} → ${m.to.map((t) => "@" + (names[t as Agent] ?? t)).join(" ")}  ${m.at.slice(11, 16)}\n  ${m.body}`).join("\n"); }
+      case "history": { const n = Number(args[0] ?? 20); return [...room.state.messages.values()].slice(-n).map((m) => `#${m.id} ${names[m.from as Agent] ?? m.from} → ${m.to.map((t) => "@" + (names[t as Agent] ?? t)).join(" ")}  ${clock(m.at)}\n  ${m.body}`).join("\n"); }
       case "conversations": return listConversations(this.ctx.root).map((n) => (n === this.name ? `* ${n}` : `  ${n}`)).join("\n") || "(none)";
       case "new": case "switch": { const n = args[0]; if (!n || !/^[\w.-]+$/.test(n)) return `usage: /${cmd} <name>`; this.next = n; await this.close(); return true; }
       case "doctor": return staticChecks({ claude: findOnPath("claude", join(homedir(), ".local", "bin", "claude")), codex: findOnPath("codex", "codex"), git: this.ctx.project.gitBin, gitVersion: this.ctx.project.gitVersion }).map((c) => `${c.ok ? "ok " : "FAIL"} ${c.name}: ${c.detail}`).join("\n");

@@ -979,8 +979,11 @@ quits when pressed twice on an empty box; relayed prompts get short ids and are 
 asynchronously. A resize reaches the chatroom after the terminal has reflowed the screen,
 so row positions are stale and a redraw per event would leave a copy of the box behind
 each time; the chatroom draws nothing until the events stop, then redraws the screen once
-from its own copy of the transcript, wrapped at the new width. Without a terminal, input
-is read line by line and output is plain text.
+from its own copy of the transcript, wrapped at the new width. Each session writes a
+screen trace, `tui.log` in the conversation directory, one line per screen operation with
+the geometry and the input bytes, so a display fault can be read after the fact. Times in
+the transcript are the local clock. Without a terminal, input is read line by line and
+output is plain text.
 
 ```text
 #42 phil → @clara                                         10:07  post
