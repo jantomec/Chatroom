@@ -1,7 +1,11 @@
 // Copies sanitized samples of the recorded vendor streams into probes/fixtures/ (§20:
-// "Driver fixtures recorded from sanitized vendor streams"). Home paths are replaced,
-// account and rate-limit records dropped, and long catalogue arrays truncated.
+// "Driver fixtures recorded from sanitized vendor streams"). Home paths, the user name, email
+// addresses, the machine name and the Codex installation id are replaced; account and
+// rate-limit records are dropped; the lists that describe the user's own Claude Code setup
+// (commands, skills, plugins, MCP servers, agents, memory paths) are emptied and tool
+// catalogues truncated.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { hostname } from "node:os";
 import { join } from "node:path";
 import { HOME, OUT_ROOT, PROBES_ROOT } from "./lib/util.ts";
 
@@ -9,14 +13,22 @@ const FIX = join(PROBES_ROOT, "fixtures");
 mkdirSync(FIX, { recursive: true });
 const USER = HOME.split("/").pop() ?? "";
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
-const scrub = (s: string) => s.split(HOME).join("/Users/user").split(USER).join("user").replace(EMAIL, "user@example.invalid");
+const HOST = hostname().replace(/\.local$/, "");
+const scrub = (s: string) => s.split(HOME).join("/Users/user").split(USER).join("user").split(HOST).join("host").replace(EMAIL, "user@example.invalid").replace(/"installationId":"[^"]*"/g, '"installationId":"00000000-0000-0000-0000-000000000000"');
 const dropLine = (l: string) => /rate_limit_event|account\/rateLimits|"subtype":"thinking_tokens"|"messaging_socket_path"/.test(l) && !/"subtype":"init"/.test(l);
+const SETUP_LISTS = new Set(["slash_commands", "skills", "agents", "plugins", "mcp_servers", "terminal_slash_commands", "commands"]);
+/** Empty every list that describes the user's own setup, wherever it sits, and truncate tool catalogues. */
 function trimInit(obj: any): any {
-  if (obj && obj.type === "system" && obj.subtype === "init") {
-    for (const k of ["slash_commands", "tools", "skills", "agents", "plugins", "terminal_slash_commands", "memory_paths"]) if (Array.isArray(obj[k])) obj[k] = obj[k].slice(0, 3).concat(obj[k].length > 3 ? [`… ${obj[k].length - 3} more`] : []);
-    delete obj["messaging_socket_path"];
+  if (Array.isArray(obj)) { obj.forEach(trimInit); return obj; }
+  if (!obj || typeof obj !== "object") return obj;
+  for (const k of Object.keys(obj)) {
+    if (k.endsWith("mcp_servers") && Array.isArray(obj[k])) obj[k] = obj[k].filter((e: any) => e?.name === "probe");   // the probe's own server stays
+    else if (SETUP_LISTS.has(k) && Array.isArray(obj[k])) obj[k] = [];
+    else if (k === "memory_paths") obj[k] = {};
+    else if (k === "messaging_socket_path") delete obj[k];
+    else if (k === "tools" && Array.isArray(obj[k])) { const t = obj[k].filter((x: unknown) => !(typeof x === "string" && x.startsWith("mcp__"))); obj[k] = t.slice(0, 3).concat(t.length > 3 ? [`… ${t.length - 3} more`] : []); }
+    else trimInit(obj[k]);
   }
-  if (obj && obj.type === "control_response" && obj.response?.response?.commands) obj.response.response.commands = obj.response.response.commands.slice(0, 2);
   return obj;
 }
 function jsonl(src: string, dst: string, keep?: (o: any) => boolean): void {
