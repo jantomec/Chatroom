@@ -147,7 +147,7 @@ class Session {
     if (ctx.raw) this.rawFiles = { claude: join(this.dir, "raw-claude.jsonl"), codex: join(this.dir, "raw-codex.jsonl") };
     const bin = resolve(process.argv[1] ?? "chatroom");
     const baseEnv = (a: Agent) => ({ ...scrubEnv(process.env, config.envAllow), ...agentVars({ agent: a, handle: config.names[a], conversation: name, drop: this.ipc.drop(a), deliveries: this.ipc.deliveries(a), receipts: this.ipc.receipts(a), scratch: this.ipc.scratch(a), bin, askTimeoutSeconds: config.askTimeoutSeconds }) });
-    this.claude = new ClaudeDriver({ bin: findOnPath("claude", join(homedir(), ".local", "bin", "claude")), settings: this.claudeSettings(), model: config.claudeModel, effort: config.claudeEffort, env: () => baseEnv("claude"), writeDelivery: (t) => this.ipc.writeDelivery("claude", t), raw: this.rawFiles ? (l) => appendFileSync(this.rawFiles!.claude, l + "\n") : undefined });
+    this.claude = new ClaudeDriver({ bin: findOnPath("claude", join(homedir(), ".local", "bin", "claude")), settings: this.claudeSettings(), model: config.claudeModel, effort: config.claudeEffort, env: () => baseEnv("claude"), writeDelivery: (t) => this.ipc.writeDelivery("claude", t), removeDelivery: (n) => this.ipc.removeDelivery("claude", n), raw: this.rawFiles ? (l) => appendFileSync(this.rawFiles!.claude, l + "\n") : undefined });
     this.codex = new CodexDriver({ bin: findOnPath("codex", "codex"), config: this.codexConfig(), model: config.codexModel, effort: config.codexEffort, env: () => baseEnv("codex"), scratch: () => this.ipc.scratch("codex"), raw: this.rawFiles ? (l) => appendFileSync(this.rawFiles!.codex, l + "\n") : undefined });
     this.room = new Room(this.log, config, { claude: this.claude, codex: this.codex }, {
       output: (line) => this.print(line),
@@ -221,6 +221,7 @@ class Session {
       room: this.room, names: config.names, statusBar: config.statusBar,
       bar: () => this.barInfo(),
       command: (line) => this.command(line),
+      interrupt: () => this.room.interruptByUser(),
       onQuit: () => this.close(),
     });
     const onSignal = () => { void this.repl?.quit(); };

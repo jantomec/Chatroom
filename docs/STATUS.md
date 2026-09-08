@@ -88,7 +88,8 @@ the WSL 2 steps.
 
 Inside: plain text goes to both agents, `@clara` or `@phil` to one, `/help` lists the
 commands; Shift-Enter, Option-Enter, Ctrl-J or a trailing backslash add a line, Option
-with the arrows moves by word, ctrl-C twice quits. The screen is Claude Code's shape:
+with the arrows moves by word, ctrl-C twice quits, Esc interrupts the agents and puts a
+message they have not read yet back into the box for editing. The screen is Claude Code's shape:
 the transcript flows from the top, the input box and the status lines follow it, and
 the badges, the context bars and the wrapping are as in Claude Code; resizing the window
 redraws the screen once the drag ends, wrapped at the new width. When an exchange

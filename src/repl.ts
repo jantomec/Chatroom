@@ -16,6 +16,7 @@ export interface ReplOptions {
   bar: () => BarInfo;
   command: (line: string) => Promise<boolean | string>;   // slash commands; true handled, false unknown, string = reply
   onQuit: () => Promise<void>;
+  interrupt?: () => Promise<string | null>;               // Esc; resolves to a withdrawn message body to put back into the box
   input?: NodeJS.ReadStream; output?: NodeJS.WriteStream;
   traceFile?: string;                                     // screen trace, one line per operation; CHATROOM_TUI_TRACE overrides
 }
@@ -348,7 +349,7 @@ export class Repl {
         if (m) { i += m[0].length; this.csi(m[1]!, m[2]!); continue; }
         m = /^\x1bO([A-Za-z])/.exec(rest);
         if (m) { i += m[0].length; this.csi("", m[1]!); continue; }
-        if (rest.length === 1) { this.pending = Buffer.from(rest); setTimeout(() => { if (this.pending.length === 1 && this.pending[0] === 0x1b) this.pending = Buffer.alloc(0); }, 60); return; }   // a lone escape, or a prefix cut by the chunk boundary
+        if (rest.length === 1) { this.pending = Buffer.from(rest); setTimeout(() => { if (this.pending.length === 1 && this.pending[0] === 0x1b) { this.pending = Buffer.alloc(0); this.key("escape", {}); } }, 60); return; }   // a lone escape (Esc), or a prefix cut by the chunk boundary
         const next = rest[1]!; i += 2;
         if (next === "\r" || next === "\n") this.key("return", { meta: true });
         else if (next === "\x7f" || next === "\b") this.key("backspace", { meta: true });
@@ -393,6 +394,7 @@ export class Repl {
     const meta = Boolean(k.meta), ctrl = Boolean(k.ctrl), shift = Boolean(k.shift);
     if (ctrl && name === "c") { if (this.text) { this.text = ""; this.cursor = 0; this.drawFooter(); return; } if (Date.now() - this.lastCtrlC < 3000) { void this.quit(); return; } this.lastCtrlC = Date.now(); this.print(`${DIM}press ctrl-c again to quit${RESET}`); return; }
     if (ctrl && name === "d") { if (!this.text) void this.quit(); return; }
+    if (name === "escape") { void this.opts.interrupt?.().then((body) => { if (body !== null && !this.text) { this.text = body; this.cursor = body.length; } this.drawFooter(); }); return; }
     if (name === "newline" || (ctrl && name === "j") || (name === "return" && (meta || shift))) { this.insert("\n"); this.drawFooter(); return; }
     if (name === "return") {
       if (this.text.endsWith("\\")) { this.text = this.text.slice(0, -1); this.cursor = Math.min(this.cursor, this.text.length); this.insert("\n"); this.drawFooter(); return; }

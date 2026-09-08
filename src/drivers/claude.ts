@@ -13,6 +13,7 @@ export interface ClaudeOptions {
   model: string | null; effort: string | null;
   env: () => NodeJS.ProcessEnv;                       // the agent's environment (§8.1)
   writeDelivery: (text: string) => string;            // returns the delivery file name
+  removeDelivery?: (name: string) => void;            // deletes a delivery file that must not be picked up any more
   raw?: ((line: string) => void) | undefined;         // raw stream, for --raw
 }
 
@@ -98,6 +99,7 @@ export class ClaudeDriver implements Driver {
     const name = this.opts.writeDelivery(input);
     this.pendingFiles.set(name, ids);
   }
+  dropDeliveries(): void { for (const name of this.pendingFiles.keys()) this.opts.removeDelivery?.(name); this.pendingFiles.clear(); }
   /** Message ids behind the delivery files an acknowledgement names. */
   ackFiles(names: string[]): number[] {
     const ids: number[] = [];

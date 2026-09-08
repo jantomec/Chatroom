@@ -207,8 +207,10 @@ Kinds: `message` (from `user`, `claude`, `codex` or `chatroom`, the last for sum
 (§11.3), `session` (`started`, `resumed`, `rebuilt`), `git` (an operation's start and
 outcome, with the oids it saw), `ref` (an expectation refresh or a deviation),
 `permission` (a relayed prompt and its answer), `budget`, `status` (a driver status
-report, §14.1), and `note` (anything the orchestrator wants the user to be able to find
-later, such as a truncated line at startup).
+report, §14.1), `interrupt` (the user pressed Esc: which unread user messages were
+withdrawn and which unread messages are held until the user's next message), and `note`
+(anything the orchestrator wants the user to be able to find later, such as a truncated
+line at startup).
 
 The whole room state is a fold over the log: which messages each agent has received,
 what each turn's inputs were, the budget, the open tasks, the expected oid of every
@@ -975,7 +977,10 @@ The screen is laid out like Claude Code's: the transcript scrolls in the upper p
 bordered input box and the status lines stay at the bottom, drawn with a terminal scroll
 region and raw keystrokes, never the alternate screen. Plain input is a user message; a
 backslash at the end of a line continues it on the next; ctrl-C clears the input, or
-quits when pressed twice on an empty box; relayed prompts get short ids and are answered
+quits when pressed twice on an empty box; Esc interrupts every active turn, as in Claude
+Code: a user message no agent has read yet is withdrawn and put back into the box for
+editing, any other unread message is held until the user's next message to that agent so
+nothing restarts by itself, and the exchange summary is not requested; relayed prompts get short ids and are answered
 asynchronously. A resize reaches the chatroom after the terminal has reflowed the screen,
 so row positions are stale and a redraw per event would leave a copy of the box behind
 each time; the chatroom draws nothing until the events stop, then redraws the screen once

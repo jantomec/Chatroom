@@ -75,6 +75,25 @@ test("mid-turn delivery: steer on codex, hook on claude, hook ack, and release a
   assert.equal(room.state.creditsUsed, 3, "no second charge");
 });
 
+test("Esc: interrupts both, returns the unread user message for editing, holds unread agent messages until the next message", async () => {
+  const { room, claude, codex } = setup();
+  await room.postUser("Go.");                                                                   // read by both at turn start
+  const m1 = await room.postAgent("codex", { op: "op-1", body: "@clara parser ready", turn: "t-0002" });   // hook delivery, unread
+  const u = await room.postUser("@clara wait, one more thing");                                  // hook delivery, unread
+  assert.equal(claude.hooks.length, 2);
+  const back = await room.interruptByUser();
+  assert.equal(back, u.body, "the unread user message comes back for editing");
+  assert.equal(claude.interrupted, 1); assert.equal(codex.interrupted, 1); assert.equal(claude.dropped, 1, "delivery files dropped");
+  assert.ok(room.state.retracted.claude.has(u.id)); assert.ok(room.state.heldFor.claude.has(m1.id));
+  claude.final("[silent]"); codex.final("[silent]"); await room.idle();
+  assert.equal(claude.turns.length, 1, "nothing restarts on its own"); assert.equal(codex.turns.length, 1);
+  assert.equal(room.log.records.filter((r) => r.kind === "turn" && r.event === "started" && r.reason === "summary").length, 0, "no summary after Esc");
+  const u2 = await room.postUser("@clara edited");
+  assert.equal(claude.turns.length, 2);
+  assert.deepEqual(ids(claude.lastTurn.input), [m1.id, u2.id], "the held message arrives with the next one; the withdrawn one never does");
+  assert.equal(await room.interruptByUser(), null, "Esc with nothing unread returns nothing");
+});
+
 test("duplicate op returns the same message", async () => {
   const { room } = setup();
   await room.postUser("@phil x");

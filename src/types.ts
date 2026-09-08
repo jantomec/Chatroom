@@ -33,6 +33,7 @@ export interface Driver {
   deliverViaHook(turnId: string, input: string, messageIds: number[]): Promise<void>;
   answerPrompt(id: string, decision: "allow" | "deny", reason?: string): Promise<void>;
   interrupt(): Promise<void>;
+  dropDeliveries?(): void;                                  // forget pending hook deliveries and remove their files (Esc)
   onEvent(handler: (event: DriverEvent) => void): void;
   close(): Promise<void>;
 }

@@ -15,6 +15,7 @@ export interface RoomState {
   messages: Map<number, MessageRecord>;
   ops: Set<string>;                              // "<from>:<op>" seen
   received: Record<Agent, Set<number>>;          // message ids each agent has received
+  retracted: Record<Agent, Set<number>>;         // user messages withdrawn by Esc before that agent read them
   heldFor: Record<Agent, Set<number>>;           // message ids held for an agent (budget or task)
   turns: Record<Agent, TurnState | null>;        // active turn
   turnCount: number;
@@ -36,7 +37,7 @@ const emptyStatus = () => ({ model: null, effort: null, cwd: null, contextTokens
 
 export function fold(records: LogRecord[], limit: number): RoomState {
   const s: RoomState = {
-    messages: new Map(), ops: new Set(), received: { claude: new Set(), codex: new Set() }, heldFor: { claude: new Set(), codex: new Set() },
+    messages: new Map(), ops: new Set(), received: { claude: new Set(), codex: new Set() }, retracted: { claude: new Set(), codex: new Set() }, heldFor: { claude: new Set(), codex: new Set() },
     turns: { claude: null, codex: null }, turnCount: 0, lastUserMessage: 0, creditsUsed: 0, limit, tasks: new Map(),
     sessions: { claude: { id: null, state: "none" }, codex: { id: null, state: "none" } },
     status: { claude: emptyStatus(), codex: emptyStatus() }, prompts: new Map(), lastRefs: null, interrupted: { claude: null, codex: null },
@@ -73,6 +74,13 @@ export function fold(records: LogRecord[], limit: number): RoomState {
       case "budget": {
         if (r.event === "limit" && typeof r.limit === "number") s.limit = r.limit;
         if (r.event === "released") for (const id of r.messages ?? []) for (const a of AGENTS) s.heldFor[a].delete(id);
+        break;
+      }
+      case "interrupt": {
+        for (const x of r.retracted) for (const a of x.from) s.retracted[a].add(x.message);
+        for (const x of r.held) for (const a of x.for) s.heldFor[a].add(x.message);
+        for (const a of AGENTS) pendingHook[a] = [];
+        s.exchange.summaryRequested = true;          // the user stopped the exchange: no summary until the next message
         break;
       }
       case "status": { const st = s.status[r.agent]; for (const k of ["model", "effort", "cwd", "contextTokens", "contextWindow"] as const) if (r[k] !== undefined) (st as any)[k] = r[k]; st.at = r.at; break; }
@@ -308,10 +316,11 @@ export class Room {
 
   private batchFor(a: Agent): number[] {
     const ids = [...this.state.messages.keys()].sort((x, y) => x - y);
-    const triggers = ids.filter((id) => { const m = this.state.messages.get(id)!; return m.from !== a && m.to.includes(a) && !this.state.received[a].has(id) && !this.state.heldFor[a].has(id) && !this.pendingHook[a].includes(id); });
+    const unread = (id: number) => { const m = this.state.messages.get(id)!; return m.from !== a && !this.state.received[a].has(id) && !this.state.retracted[a].has(id) && !this.state.heldFor[a].has(id) && !this.pendingHook[a].includes(id); };
+    const triggers = ids.filter((id) => unread(id) && this.state.messages.get(id)!.to.includes(a));
     if (triggers.length === 0) return [];
     const newest = triggers[triggers.length - 1]!;
-    return ids.filter((id) => id <= newest && this.state.messages.get(id)!.from !== a && !this.state.received[a].has(id) && !this.state.heldFor[a].has(id) && !this.pendingHook[a].includes(id)).slice(-64);
+    return ids.filter((id) => id <= newest && unread(id)).slice(-64);
   }
   async tick(): Promise<void> {
     await Promise.all(AGENTS.map((a) => this.tickAgent(a)));
@@ -490,6 +499,30 @@ export class Room {
   async stop(a: Agent): Promise<void> {
     const turn = this.state.turns[a]; if (!turn) return;
     await this.drivers[a].interrupt();
+  }
+  /** Esc: interrupt every active turn. A user message no agent has read yet is withdrawn and returned for
+   *  editing; any other unread message is held until the user's next message to that agent, so nothing
+   *  restarts on its own. Returns the withdrawn message body when there is one to edit. */
+  async interruptByUser(): Promise<string | null> {
+    const active = AGENTS.filter((a) => this.state.turns[a] || this.starting[a]);
+    const retracted: { message: number; from: Agent[] }[] = []; const held: { message: number; for: Agent[] }[] = [];
+    for (const m of this.state.messages.values()) {
+      const unread = m.to.filter((t): t is Agent => (t === "claude" || t === "codex") && t !== m.from && !this.state.received[t].has(m.id) && !this.state.retracted[t].has(m.id) && !this.state.heldFor[t].has(m.id));
+      if (unread.length === 0) continue;
+      if (m.from === "user") retracted.push({ message: m.id, from: unread }); else held.push({ message: m.id, for: unread });
+    }
+    if (active.length === 0 && retracted.length === 0 && held.length === 0) return null;
+    this.log.append({ kind: "interrupt", retracted, held }); this.refold();
+    for (const a of AGENTS) { this.pendingHook[a] = []; this.drivers[a].dropDeliveries?.(); }
+    for (const a of active) await this.stop(a);
+    const last = [...this.state.messages.values()].filter((m) => m.from === "user").at(-1);
+    const back = last && retracted.find((r) => r.message === last.id && r.from.length === last.to.filter((t) => t !== "user").length) ? last : null;
+    const parts = [active.length ? `interrupted ${active.map((a) => "@" + this.handle(a)).join(" and ")}` : "nothing was running"];
+    if (back) parts.push(`#${back.id} had not been read and is back in the input box`);
+    for (const r of retracted) if (r.message !== back?.id) parts.push(`#${r.message} withdrawn from ${r.from.map((a) => "@" + this.handle(a)).join(" and ")}`);
+    if (held.length) parts.push(`${held.length} unread message(s) held until your next message`);
+    this.say(`  · ${parts.join("; ")}`);
+    return back ? back.body : null;
   }
   async close(): Promise<void> { for (const a of AGENTS) await this.drivers[a].close(); }
 }

@@ -24,6 +24,8 @@ export class FakeDriver implements Driver {
   async deliverViaHook(turn: string, input: string, ids: number[]) { this.hooks.push({ turn, input, ids }); }
   async answerPrompt(id: string, decision: "allow" | "deny", reason?: string) { this.prompts.push({ id, decision, reason }); }
   async interrupt() { this.interrupted++; }
+  dropped = 0;
+  dropDeliveries() { this.dropped++; }
   onEvent(h: (e: DriverEvent) => void) { this.handler = h; }
   async close() {}
   emit(e: DriverEvent) { this.handler?.(e); }
