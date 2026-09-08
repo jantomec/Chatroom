@@ -68,7 +68,8 @@ as the base and says so.
 Inside: plain text goes to both agents, `@clara` or `@phil` to one, `/help` lists the
 commands. Shift-Enter, Option-Enter, Ctrl-J or a trailing backslash add a line; ctrl-C
 twice quits; Esc interrupts the agents and, if they have not read your last message yet,
-puts it back into the box for editing. `chatroom new <name>`, `chatroom continue <name>`, `chatroom list` and
+puts it back into the box for editing. `/model` and `/effort` pick a model or effort per
+agent from a list; the choice applies from the next turn and is remembered. `chatroom new <name>`, `chatroom continue <name>`, `chatroom list` and
 `chatroom delete <name>` manage conversations. The log is
 `.chatroom/conversations/<name>/log.jsonl`; `chatroom log` prints it. Worktrees live
 under `~/.local/state/chatroom/<project>/worktrees/<name>/`.

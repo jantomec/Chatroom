@@ -4,7 +4,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
-import type { Capabilities, Driver, DriverEvent, SessionSpec } from "../types.ts";
+import type { Capabilities, Driver, DriverEvent, SessionSpec, ModelChoice } from "../types.ts";
 
 export interface CodexOptions {
   bin: string;
@@ -32,7 +32,22 @@ export class CodexDriver implements Driver {
   private cwd = ""; private brief = ""; private turn = "t-0000";
   private finalText = "";
   private serverRequests = new Map<string, { id: unknown; method: string; params: Msg }>();
-  constructor(opts: CodexOptions) { this.opts = opts; }
+  private wantModel: string | null; private wantEffort: string | null;   // sent with the thread and with every turn
+  constructor(opts: CodexOptions) { this.opts = opts; this.wantModel = opts.model; this.wantEffort = opts.effort; }
+  /** turn/start carries model and effort ("for this turn and subsequent turns"): no reconnect needed. */
+  setModel(model: string | null): boolean { this.wantModel = model; return false; }
+  setEffort(effort: string | null): boolean { this.wantEffort = effort; return false; }
+  /** model/list of the app-server: visible models with the efforts each advertises. */
+  async listModels(): Promise<ModelChoice[]> {
+    if (this.mode !== "app-server" || !this.child) return [];
+    const out: ModelChoice[] = []; let cursor: string | null = null;
+    do {
+      const r: Msg = await this.request("model/list", { limit: 50, ...(cursor ? { cursor } : {}) });
+      for (const m of (r["data"] ?? []) as Msg[]) if (!m["hidden"]) out.push({ id: String(m["model"] ?? m["id"]), label: String(m["displayName"] ?? m["model"] ?? m["id"]), efforts: ((m["supportedReasoningEfforts"] ?? []) as Msg[]).map((e) => String(e["reasoningEffort"])), defaultEffort: (m["defaultReasoningEffort"] as string | null) ?? null });
+      cursor = (r["nextCursor"] as string | null) ?? null;
+    } while (cursor);
+    return out;
+  }
   onEvent(h: (e: DriverEvent) => void): void { this.handler = h; }
   private emit(e: DriverEvent): void { this.handler?.(e); }
 
@@ -125,7 +140,7 @@ export class CodexDriver implements Driver {
     if (this.opts.preferAppServer !== false) {
       try {
         await this.spawnServer();
-        const common = { cwd: this.cwd, approvalPolicy: "on-request", approvalsReviewer: "auto_review", config: this.withEffort(this.opts.config), developerInstructions: this.brief, ...(this.opts.model ? { model: this.opts.model } : {}) };
+        const common = { cwd: this.cwd, approvalPolicy: "on-request", approvalsReviewer: "auto_review", config: this.withEffort(this.opts.config), developerInstructions: this.brief, ...(this.wantModel ? { model: this.wantModel } : {}) };
         let resumed = false; let resp: Msg | null = null;
         if (session.id) { try { resp = await this.request("thread/resume", { threadId: session.id, ...common }); resumed = true; } catch (e) { this.emit({ type: "error", message: `resume failed, starting a new thread: ${String(e).slice(0, 200)}` }); } }
         if (!resp) resp = await this.request("thread/start", { ...common, serviceName: "chatroom" });
@@ -144,13 +159,13 @@ export class CodexDriver implements Driver {
     this.threadId = session.id;
     return { sessionId: session.id ?? "", resumed: session.id !== null };
   }
-  private withEffort(config: Record<string, unknown>): Record<string, unknown> { return this.opts.effort ? { ...config, model_reasoning_effort: this.opts.effort } : config; }
+  private withEffort(config: Record<string, unknown>): Record<string, unknown> { return this.wantEffort ? { ...config, model_reasoning_effort: this.wantEffort } : config; }
 
   async startTurn(turnId: string, input: string): Promise<void> {
     this.turn = turnId; this.finalText = "";
     if (this.mode === "app-server") {
       if (!this.child) throw new Error("app-server is not running; reconnect");
-      const r = await this.request("turn/start", { threadId: this.threadId, input: [{ type: "text", text: input }] });
+      const r = await this.request("turn/start", { threadId: this.threadId, input: [{ type: "text", text: input }], ...(this.wantModel ? { model: this.wantModel } : {}), ...(this.wantEffort ? { effort: this.wantEffort } : {}) });
       this.turnId = r.turn.id;
       return;
     }
@@ -184,7 +199,7 @@ export class CodexDriver implements Driver {
     const cfg: string[] = [];
     for (const [k, v] of Object.entries(this.withEffort(this.opts.config))) cfg.push("-c", `${k}=${toToml(v)}`);
     const args = this.threadId ? ["exec", "resume", this.threadId, ...cfg, "--json", "-o", out, "-"] : ["exec", ...cfg, "--cd", this.cwd, "--json", "-o", out, "-"];
-    if (this.opts.model) args.splice(1, 0, "-m", this.opts.model);
+    if (this.wantModel) args.splice(1, 0, "-m", this.wantModel);
     const child = spawn(this.opts.bin, args, { cwd: this.cwd, env: this.opts.env(), stdio: ["pipe", "pipe", "pipe"] });
     this.execChild = child;
     const reap = () => { try { child.kill("SIGKILL"); } catch { /* gone */ } };

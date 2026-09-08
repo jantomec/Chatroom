@@ -24,6 +24,8 @@ export type DriverEvent =
 
 export interface SessionSpec { id: string | null; cwd: string; brief: string }
 
+export interface ModelChoice { id: string; label: string; efforts: string[]; defaultEffort: string | null }
+
 export interface Driver {
   readonly agent: Agent;
   readonly capabilities: Capabilities;
@@ -33,6 +35,9 @@ export interface Driver {
   deliverViaHook(turnId: string, input: string, messageIds: number[]): Promise<void>;
   answerPrompt(id: string, decision: "allow" | "deny", reason?: string): Promise<void>;
   interrupt(): Promise<void>;
+  setModel(model: string | null): boolean;                 // null = vendor default; true when a reconnect is needed to apply it
+  setEffort(effort: string | null): boolean;
+  listModels?(): Promise<ModelChoice[]>;                    // what the harness offers, when it can say
   dropDeliveries?(): void;                                  // forget pending hook deliveries and remove their files (Esc)
   onEvent(handler: (event: DriverEvent) => void): void;
   close(): Promise<void>;

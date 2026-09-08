@@ -16,6 +16,7 @@ export interface RoomState {
   ops: Set<string>;                              // "<from>:<op>" seen
   received: Record<Agent, Set<number>>;          // message ids each agent has received
   retracted: Record<Agent, Set<number>>;         // user messages withdrawn by Esc before that agent read them
+  overrides: Record<Agent, { model: string | null; effort: string | null }>;   // /model and /effort choices; null = vendor default
   heldFor: Record<Agent, Set<number>>;           // message ids held for an agent (budget or task)
   turns: Record<Agent, TurnState | null>;        // active turn
   turnCount: number;
@@ -37,7 +38,7 @@ const emptyStatus = () => ({ model: null, effort: null, cwd: null, contextTokens
 
 export function fold(records: LogRecord[], limit: number): RoomState {
   const s: RoomState = {
-    messages: new Map(), ops: new Set(), received: { claude: new Set(), codex: new Set() }, retracted: { claude: new Set(), codex: new Set() }, heldFor: { claude: new Set(), codex: new Set() },
+    messages: new Map(), ops: new Set(), received: { claude: new Set(), codex: new Set() }, retracted: { claude: new Set(), codex: new Set() }, overrides: { claude: { model: null, effort: null }, codex: { model: null, effort: null } }, heldFor: { claude: new Set(), codex: new Set() },
     turns: { claude: null, codex: null }, turnCount: 0, lastUserMessage: 0, creditsUsed: 0, limit, tasks: new Map(),
     sessions: { claude: { id: null, state: "none" }, codex: { id: null, state: "none" } },
     status: { claude: emptyStatus(), codex: emptyStatus() }, prompts: new Map(), lastRefs: null, interrupted: { claude: null, codex: null },
@@ -74,6 +75,11 @@ export function fold(records: LogRecord[], limit: number): RoomState {
       case "budget": {
         if (r.event === "limit" && typeof r.limit === "number") s.limit = r.limit;
         if (r.event === "released") for (const id of r.messages ?? []) for (const a of AGENTS) s.heldFor[a].delete(id);
+        break;
+      }
+      case "config": {
+        if (r.model !== undefined) s.overrides[r.agent].model = r.model;
+        if (r.effort !== undefined) s.overrides[r.agent].effort = r.effort;
         break;
       }
       case "interrupt": {
@@ -137,6 +143,7 @@ export class Room {
   private starting: Record<Agent, boolean> = { claude: false, codex: false };
   private connected: Record<Agent, boolean> = { claude: false, codex: false };
   private connecting: Record<Agent, Promise<void> | null> = { claude: null, codex: null };
+  private reconnect: Record<Agent, boolean> = { claude: false, codex: false };   // a /model or /effort change waits for the turn to end
   private pendingHook: Record<Agent, number[]> = { claude: [], codex: [] };
   private explicitReply: Record<Agent, boolean> = { claude: false, codex: false };
   private askWaiters = new Map<number, { agent: Agent; resolve: (r: { status: string; message?: MessageRecord }) => void }>();
@@ -154,6 +161,7 @@ export class Room {
     }
     this.refold();
     this.state.interrupted = interrupted;
+    for (const a of AGENTS) { const o = this.state.overrides[a]; if (o.model !== null) this.drivers[a].setModel(o.model); if (o.effort !== null) this.drivers[a].setEffort(o.effort); }   // choices recorded in the log outlive the session
   }
   private limitFromLog(): number { let l = this.config.autonomyLimit; for (const r of this.log.records) if (r.kind === "budget" && r.event === "limit" && typeof r.limit === "number") l = r.limit; return l; }
   private refold(): void { const interrupted = this.state.interrupted; this.state = fold(this.log.records, this.config.autonomyLimit); this.state.limit = this.limitFromLog(); this.state.interrupted = interrupted; }
@@ -393,6 +401,8 @@ export class Room {
       const d = this.drivers[a];
       const interrupted = this.state.interrupted[a];
       let recovery: string | undefined;
+      if (this.reconnect[a] && this.connected[a]) { await this.drivers[a].close(); this.connected[a] = false; }   // a /model or /effort change: resume the session with the new flags
+      this.reconnect[a] = false;
       await this.ensureConnected(a);
       if (interrupted) {
         recovery = `[chatroom] Recovery note: your previous turn ${interrupted.id} was interrupted (messages ${interrupted.inputs.map((i) => "#" + i).join(", ")} had reached you). Inspect the worktree before repeating commands or edits.`;
@@ -523,6 +533,22 @@ export class Room {
     if (held.length) parts.push(`${held.length} unread message(s) held until your next message`);
     this.say(`  · ${parts.join("; ")}`);
     return back ? back.body : null;
+  }
+  /** /model and /effort: record the choice, hand it to the driver, and apply it from the next turn. */
+  async setOverride(a: Agent, patch: { model?: string | null; effort?: string | null }): Promise<string> {
+    this.log.append({ kind: "config", agent: a, ...patch }); this.refold();
+    let needs = false;
+    if (patch.model !== undefined) needs = this.drivers[a].setModel(patch.model) || needs;
+    if (patch.effort !== undefined) needs = this.drivers[a].setEffort(patch.effort) || needs;
+    const what = Object.entries(patch).map(([k, v]) => `${k} ${v ?? "default"}`).join(", ");
+    let when = "from the next turn";
+    if (needs) {
+      if (this.connected[a] && !this.state.turns[a] && !this.starting[a]) { await this.drivers[a].close(); this.connected[a] = false; when = "from the next turn, the session is resumed with it"; }
+      else if (this.connected[a]) { this.reconnect[a] = true; when = "after the current turn, the session is then resumed with it"; }
+    }
+    const line = `@${this.handle(a)}: ${what}, ${when}`;
+    this.say(`  · ${line}`);
+    return line;
   }
   async close(): Promise<void> { for (const a of AGENTS) await this.drivers[a].close(); }
 }

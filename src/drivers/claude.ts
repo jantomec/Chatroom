@@ -31,10 +31,14 @@ export class ClaudeDriver implements Driver {
   private sessionId: string | null = null;
   private cwd = ""; private brief = "";
   private model: string | null = null;
+  private wantModel: string | null; private wantEffort: string | null;   // what the next spawn asks for
   private turn: string | null = null;
   private pendingFiles = new Map<string, number[]>();
   private resumeFailed = false;
-  constructor(opts: ClaudeOptions) { this.opts = opts; }
+  constructor(opts: ClaudeOptions) { this.opts = opts; this.wantModel = opts.model; this.wantEffort = opts.effort; }
+  /** Both are session flags of the CLI: they take effect when the session is next resumed. */
+  setModel(model: string | null): boolean { this.wantModel = model; return true; }
+  setEffort(effort: string | null): boolean { this.wantEffort = effort; return true; }
 
   onEvent(h: (e: DriverEvent) => void): void { this.handler = h; }
   private emit(e: DriverEvent): void { this.handler?.(e); }
@@ -52,8 +56,8 @@ export class ClaudeDriver implements Driver {
       "--append-system-prompt", this.brief, "--settings", JSON.stringify(this.opts.settings),
       "--permission-mode", "auto", "--permission-prompts", "host", "--permission-prompt-tool", "stdio",
       resume ? "--resume" : "--session-id", this.sessionId!];
-    if (this.opts.model) a.push("--model", this.opts.model);
-    if (this.opts.effort) a.push("--effort", this.opts.effort);
+    if (this.wantModel) a.push("--model", this.wantModel);
+    if (this.wantEffort) a.push("--effort", this.wantEffort);
     return a;
   }
 

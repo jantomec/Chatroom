@@ -207,7 +207,8 @@ Kinds: `message` (from `user`, `claude`, `codex` or `chatroom`, the last for sum
 (§11.3), `session` (`started`, `resumed`, `rebuilt`), `git` (an operation's start and
 outcome, with the oids it saw), `ref` (an expectation refresh or a deviation),
 `permission` (a relayed prompt and its answer), `budget`, `status` (a driver status
-report, §14.1), `interrupt` (the user pressed Esc: which unread user messages were
+report, §14.1), `config` (a model or effort chosen with `/model` or `/effort`, which
+outlives the session and overrides the configuration file), `interrupt` (the user pressed Esc: which unread user messages were
 withdrawn and which unread messages are held until the user's next message), and `note`
 (anything the orchestrator wants the user to be able to find later, such as a truncated
 line at startup).
@@ -1006,6 +1007,7 @@ main   feature/parser  ~/Projects/app   budget 1/6 · integration +2 · task par
 | Command | Effect |
 |---|---|
 | `/budget [N]` | Show or set the autonomy credit limit. |
+| `/model`, `/effort` | Pick a model or an effort per agent from a list, one question per agent: Claude's aliases and effort levels as its command accepts them, Codex's models and each model's efforts as its app-server lists them, the vendor default, or a typed name. Recorded in the log; applied from the next turn, Claude's by resuming its session with the new flags, Codex's on the turn request. |
 | `/status` | Agents, sessions, turns, held deliveries, prompts, refs and expectations, git binary, native-commit availability, the status bar values with their source and age. |
 | `/stop <agent\|all>` | Protocol interrupt, then SIGTERM, then SIGKILL. |
 | `/allow <id>`, `/deny <id> [reason]` | Answer a relayed prompt. |
@@ -1029,7 +1031,7 @@ Configuration, TOML, project overriding global; unknown keys are errors:
 | `ask.timeout_seconds` | `60` | Below the measured 120 s Bash tool timeout. |
 | `task.review_rounds` | `2` | Blockers per task before the task goes to the user. |
 | `agents.claude.handle`, `agents.codex.handle` | `clara`, `phil` | The agents' names in the chat. |
-| `driver.claude.model`, `driver.codex.model` | vendor default | Model override. |
+| `driver.claude.model`, `driver.codex.model` | vendor default | Model at start; a `/model` choice in the log takes precedence. |
 | `driver.claude.effort`, `driver.codex.effort` | vendor default | `--effort` on Claude, `model_reasoning_effort` on Codex. |
 | `git.binary` | resolved from `PATH` | The git executable. |
 | `security.extra_write_roots` | empty | Package caches, build outputs. |

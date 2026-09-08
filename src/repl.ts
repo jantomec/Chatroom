@@ -9,6 +9,8 @@ import { shortPath } from "./git.ts";
 
 export interface BarInfo { branch: Record<Agent, string>; directory: Record<Agent, string>; mainBranch: string; mainPath: string; integrationAhead: number; conversation: string }
 
+export interface SelectOption { label: string; value: string; note?: string | undefined }
+
 export interface ReplOptions {
   room: Room;
   names: { claude: string; codex: string };
@@ -77,6 +79,8 @@ export class Repl {
   private ownsScreen = false;           // true once nothing but the chatroom is on screen (the region has scrolled, or the screen was redrawn)
   private resizing: NodeJS.Timeout | null = null;   // set while resize events are still arriving
   private banner: string | null = null;             // one line under the status lines, e.g. an available update
+  private selector: { question: string; options: SelectOption[]; index: number; resolve: (v: string | null) => void } | null = null;   // a list drawn in place of the input
+  private textPrompt: { question: string; resolve: (v: string | null) => void } | null = null;                                          // a one-line question answered in the input
   /** Append one line per screen operation to the trace file: the geometry and what caused it. */
   private trace(kind: string, extra = ""): void {
     const f = process.env["CHATROOM_TUI_TRACE"] ?? this.opts.traceFile; if (!f) return;
@@ -100,6 +104,19 @@ export class Repl {
     if (this.tty) { this.rows = this.out.rows ?? 24; this.cols = this.out.columns ?? 80; }
   }
   setShow(level: "quiet" | "activity" | "full"): void { this.show = level; }
+  get interactive(): boolean { return this.tty; }
+  /** A list to pick from, drawn in place of the input box: up/down or j/k move, Enter picks, a digit picks directly, Esc cancels. */
+  select(question: string, options: SelectOption[], initial = 0): Promise<string | null> {
+    if (!this.tty || options.length === 0) return Promise.resolve(null);
+    return new Promise((resolve) => { this.selector = { question, options, index: Math.max(0, Math.min(initial, options.length - 1)), resolve }; this.drawFooter(); });
+  }
+  /** One line of free text asked in the input box: Enter answers, Esc cancels. */
+  prompt(question: string): Promise<string | null> {
+    if (!this.tty) return Promise.resolve(null);
+    return new Promise((resolve) => { this.textPrompt = { question, resolve }; this.text = ""; this.cursor = 0; this.drawFooter(); });
+  }
+  private endSelector(v: string | null): void { const s = this.selector; this.selector = null; this.drawFooter(); s?.resolve(v); }
+  private endPrompt(v: string | null): void { const p = this.textPrompt; this.textPrompt = null; this.text = ""; this.cursor = 0; this.drawFooter(); p?.resolve(v); }
   /** Show a line under the status lines; without a terminal it is printed once. */
   setBanner(text: string): void {
     if (this.closed) return;
@@ -198,7 +215,8 @@ export class Repl {
     }
     return { rows, cursorRow, cursorCol };
   }
-  private footerHeight(): number { return Math.min(this.inputRows().rows.length, 8) + 2 + (this.opts.statusBar ? 3 : 0) + (this.banner ? 1 : 0); }
+  private boxRows(): number { return this.selector ? Math.min(1 + this.selector.options.length, 14) : this.textPrompt ? 1 : Math.min(this.inputRows().rows.length, 8); }
+  private footerHeight(): number { return this.boxRows() + 2 + (this.opts.statusBar ? 3 : 0) + (this.banner ? 1 : 0); }
   private layout(): void {
     if (!this.tty) return;
     this.rows = this.out.rows ?? 24; this.cols = this.out.columns ?? 80;
@@ -246,20 +264,30 @@ export class Repl {
     const top = Math.min(this.contentRow, this.rows - h + 1); const w = this.cols;
     this.trace("footer", `top=${top}`);
     const fit = (s: string) => { const v = visibleLength(s); return v > w ? cutVisible(s, Math.max(0, w - 1)) + "…" + RESET : s + " ".repeat(w - v); };
-    const { rows, cursorRow, cursorCol } = this.inputRows();
-    const first = Math.max(0, Math.min(cursorRow - 7, rows.length - 8));
-    const shown = rows.slice(first, first + 8);
+    let shown: string[]; let cursorRow = 0, cursorCol = 0, first = 0; let cursorLine = 0;
+    const sel = this.selector;
+    if (sel) {   // the question, then the options, the chosen one marked; the cursor sits on it
+      first = Math.max(0, Math.min(sel.index - 11, sel.options.length - 13));
+      shown = [`${BOLD}${sel.question}${RESET}`, ...sel.options.slice(first, first + 13).map((o, i) => { const on = first + i === sel.index; return `${on ? FG["cyan"] + "●" : DIM + "○"}${RESET} ${on ? BOLD : ""}${o.label}${RESET}${o.note ? `  ${DIM}${o.note}${RESET}` : ""}`; })];
+      cursorLine = sel.index - first + 1; cursorCol = -2; first = 0;
+    } else if (this.textPrompt) {
+      shown = [`${DIM}${this.textPrompt.question}:${RESET} ${this.text}`]; cursorCol = this.textPrompt.question.length + 2 + this.cursor;
+    } else {
+      const r = this.inputRows(); cursorRow = r.cursorRow; cursorCol = r.cursorCol;
+      first = Math.max(0, Math.min(cursorRow - 7, r.rows.length - 8));
+      shown = r.rows.slice(first, first + 8); cursorLine = cursorRow - first;
+    }
     let s = `${ESC}?25l${ESC}${top};1H${ESC}J`;
     s += fit(`${DIM}╭${"─".repeat(Math.max(0, w - 2))}╮${RESET}`) + "\n";
     for (const [i, l] of shown.entries()) {
-      const glyph = first + i === 0 ? `${FG["user"]}❯${RESET}` : " ";
+      const glyph = !sel && first + i === 0 ? `${FG["user"]}❯${RESET}` : sel && i === 0 ? `${FG["user"]}❯${RESET}` : " ";
       const body = `${DIM}│${RESET} ${glyph} ${l}`;
       s += `${body}${" ".repeat(Math.max(0, w - 1 - visibleLength(body)))}${DIM}│${RESET}\n`;
     }
     s += fit(`${DIM}╰${"─".repeat(Math.max(0, w - 2))}╯${RESET}`);
     if (this.opts.statusBar) for (const l of this.statusLines()) s += "\n" + fit(l);
     if (this.banner) s += "\n" + fit(`${FG["yellow"]}${this.banner}${RESET}`);
-    const row = top + 1 + (cursorRow - first); const col = 5 + cursorCol;
+    const row = top + 1 + cursorLine; const col = 5 + cursorCol;
     s += `${ESC}${row};${col}H${ESC}?25h`;
     this.write(s);
   }
@@ -318,7 +346,17 @@ export class Repl {
     await this.quit();
   }
 
-  private insert(s: string): void { this.text = this.text.slice(0, this.cursor) + s + this.text.slice(this.cursor); this.cursor += s.length; }
+  private insert(s: string): void {
+    if (this.selector) {
+      const n = Number(s); const len = this.selector.options.length;
+      if (s.length === 1 && n >= 1 && n <= len) { const v = this.selector.options[n - 1]!.value; this.selector.index = n - 1; this.endSelector(v); }
+      else if (s === "j") { this.selector.index = (this.selector.index + 1) % len; this.drawFooter(); }
+      else if (s === "k") { this.selector.index = (this.selector.index + len - 1) % len; this.drawFooter(); }
+      return;
+    }
+    if (this.textPrompt && s.includes("\n")) s = s.replace(/\n/g, " ");
+    this.text = this.text.slice(0, this.cursor) + s + this.text.slice(this.cursor); this.cursor += s.length;
+  }
   private wordLeft(): number { let i = this.cursor; while (i > 0 && /\s/.test(this.text[i - 1]!)) i--; while (i > 0 && !/\s/.test(this.text[i - 1]!)) i--; return i; }
   private wordRight(): number { let i = this.cursor; while (i < this.text.length && /\s/.test(this.text[i]!)) i++; while (i < this.text.length && !/\s/.test(this.text[i]!)) i++; return i; }
   private lineStart(): number { const i = this.text.lastIndexOf("\n", this.cursor - 1); return i < 0 ? 0 : i + 1; }
@@ -392,6 +430,20 @@ export class Repl {
   }
   private key(name: string, k: { meta?: boolean; ctrl?: boolean; shift?: boolean }): void {
     const meta = Boolean(k.meta), ctrl = Boolean(k.ctrl), shift = Boolean(k.shift);
+    if (this.selector) {
+      const s = this.selector; const n = s.options.length;
+      if (name === "up" || (name === "k" && !ctrl && !meta)) s.index = (s.index + n - 1) % n;
+      else if (name === "down" || (name === "j" && !ctrl && !meta)) s.index = (s.index + 1) % n;
+      else if (name === "return") { this.endSelector(s.options[s.index]!.value); return; }
+      else if (name === "escape" || (ctrl && name === "c")) { this.endSelector(null); return; }
+      else return;
+      this.drawFooter(); return;
+    }
+    if (this.textPrompt) {
+      if (name === "return") { this.endPrompt(this.text.trim()); return; }
+      if (name === "escape" || (ctrl && name === "c")) { this.endPrompt(null); return; }
+      if (name === "newline" || (ctrl && name === "j")) return;
+    }
     if (ctrl && name === "c") { if (this.text) { this.text = ""; this.cursor = 0; this.drawFooter(); return; } if (Date.now() - this.lastCtrlC < 3000) { void this.quit(); return; } this.lastCtrlC = Date.now(); this.print(`${DIM}press ctrl-c again to quit${RESET}`); return; }
     if (ctrl && name === "d") { if (!this.text) void this.quit(); return; }
     if (name === "escape") { void this.opts.interrupt?.().then((body) => { if (body !== null && !this.text) { this.text = body; this.cursor = body.length; } this.drawFooter(); }); return; }

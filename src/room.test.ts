@@ -94,6 +94,27 @@ test("Esc: interrupts both, returns the unread user message for editing, holds u
   assert.equal(await room.interruptByUser(), null, "Esc with nothing unread returns nothing");
 });
 
+test("/model and /effort: recorded, applied at the next turn, Claude resumed for it, Codex not; outlives the session", async () => {
+  const { room, claude, codex, path } = setup();
+  await room.setOverride("claude", { model: "opus" });
+  assert.equal(claude.model, "opus"); assert.equal(room.state.overrides.claude.model, "opus");
+  assert.equal(claude.closes, 0, "not connected yet: nothing to resume");
+  await room.postUser("Go.");                                     // both connect and start
+  assert.equal(claude.connects.length, 1);
+  await room.setOverride("claude", { effort: "low" });            // mid-turn: waits for the turn to end
+  await room.setOverride("codex", { model: "gpt-x", effort: "high" });   // per turn on Codex: no reconnect ever
+  assert.equal(claude.closes, 0); assert.equal(codex.model, "gpt-x");
+  claude.final("[silent]"); codex.final("[silent]"); await room.idle();
+  await room.postUser("Again.");
+  assert.equal(claude.closes, 1, "Claude's session was closed and resumed with the new flags"); assert.equal(claude.connects.length, 2);
+  assert.equal(codex.closes, 0); assert.equal(codex.connects.length, 1);
+  assert.equal(room.log.records.filter((r) => r.kind === "config").length, 3);
+  // a new process folds the choices from the log and hands them to fresh drivers
+  const c2 = new FakeDriver("claude"); const x2 = new FakeDriver("codex");
+  const room2 = new Room(new Log(path), { ...CONFIG_DEFAULTS }, { claude: c2, codex: x2 });
+  assert.equal(room2.state.overrides.claude.effort, "low"); assert.equal(c2.model, "opus"); assert.equal(c2.effort, "low"); assert.equal(x2.model, "gpt-x"); assert.equal(x2.effort, "high");
+});
+
 test("duplicate op returns the same message", async () => {
   const { room } = setup();
   await room.postUser("@phil x");

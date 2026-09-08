@@ -26,8 +26,10 @@ export interface BudgetRecord extends Base { kind: "budget"; event: "reset" | "l
 export interface StatusRecord extends Base { kind: "status"; agent: Agent; model?: string | null; effort?: string | null; cwd?: string | null; contextTokens?: number | null; contextWindow?: number | null }
 export interface NoteRecord extends Base { kind: "note"; text: string; [k: string]: unknown }
 /** The user pressed Esc: turns were interrupted; user messages no agent had read are withdrawn, other unread messages held until the user's next message. */
+/** A model or effort chosen at runtime with /model or /effort; null means the vendor default. Outlives the session. */
+export interface ConfigRecord extends Base { kind: "config"; agent: Agent; model?: string | null; effort?: string | null }
 export interface InterruptRecord extends Base { kind: "interrupt"; retracted: { message: number; from: Agent[] }[]; held: { message: number; for: Agent[] }[] }
-export type LogRecord = MessageRecord | TurnRecord | MarkerRecord | SessionRecord | GitRecord | RefRecord | PermissionRecord | BudgetRecord | StatusRecord | NoteRecord | InterruptRecord;
+export type LogRecord = MessageRecord | TurnRecord | MarkerRecord | SessionRecord | GitRecord | RefRecord | PermissionRecord | BudgetRecord | StatusRecord | NoteRecord | InterruptRecord | ConfigRecord;
 export type NewRecord = { [K in LogRecord["kind"]]: Omit<Extract<LogRecord, { kind: K }>, "id" | "at"> }[LogRecord["kind"]];
 
 /** A record's time as the local clock shows it, HH:MM. */

@@ -278,14 +278,40 @@ class Session {
     if (!s) return null; const l = s.toLowerCase(); const n = this.ctx.config.names;
     if (l === "all") return "all"; if (l === "claude" || l === n.claude.toLowerCase()) return "claude"; if (l === "codex" || l === n.codex.toLowerCase()) return "codex"; return null;
   }
+  /** /model and /effort: one question per agent, then each choice is recorded in the log and applied from the next turn. */
+  private async pickFor(kind: "model" | "effort"): Promise<string> {
+    const repl = this.repl; if (!repl || !repl.interactive) return `/${kind} needs the terminal; set driver.<agent>.${kind} in the config file instead`;
+    const names = this.ctx.config.names; const st = this.room.state.status;
+    try { await this.room.ensureConnected("codex"); } catch { /* the list is then short */ }
+    const codexModels = await this.codex.listModels();
+    const results: string[] = [];
+    for (const a of AGENTS) {
+      const current = st[a][kind] ?? "default";
+      const options: { label: string; value: string; note?: string | undefined }[] = [{ label: `keep ${current}`, value: "__keep" }];
+      if (kind === "model") {
+        if (a === "claude") options.push({ label: "fable", value: "fable" }, { label: "opus", value: "opus" }, { label: "sonnet", value: "sonnet" });
+        else for (const m of codexModels) options.push({ label: m.label, value: m.id, note: m.efforts.length ? `efforts ${m.efforts.join(" ")}` : undefined });
+      } else if (a === "claude") options.push(...["low", "medium", "high", "xhigh", "max"].map((e) => ({ label: e, value: e })));
+      else { const m = codexModels.find((x) => x.id === st.codex.model) ?? codexModels.find((x) => x.id === this.room.state.overrides.codex.model); for (const e of m?.efforts ?? []) options.push({ label: e, value: e, note: e === m?.defaultEffort ? "model default" : undefined }); }
+      options.push({ label: "vendor default", value: "__default" }, { label: "type a name…", value: "__type" });
+      let v = await repl.select(`${kind} for ${names[a]}`, options);
+      if (v === "__type") v = await repl.prompt(`${kind} for ${names[a]}`);
+      if (v === null || v === "") { results.push(`${names[a]}: cancelled`); break; }
+      if (v === "__keep") { results.push(`${names[a]}: unchanged`); continue; }
+      results.push(await this.room.setOverride(a, { [kind]: v === "__default" ? null : v }));
+    }
+    return results.join("\n");
+  }
   private async command(line: string): Promise<boolean | string> {
     const [cmd, ...args] = line.slice(1).split(/\s+/);
     const room = this.room; const names = this.ctx.config.names;
     const each = async (arg: string | undefined, f: (a: Agent) => string): Promise<string> => { const a = this.agentArg(arg); if (!a) return `which agent? ${names.claude}, ${names.codex} or all`; const list = a === "all" ? AGENTS : [a]; for (const x of list) if (room.state.turns[x]) return `${names[x]} has a turn in flight; wait or /stop ${names[x]}`; return list.map((x) => `${names[x]}: ${f(x)}`).join("\n"); };
     switch (cmd) {
-      case "help": return `commands: /budget [N] · /status · /stop <agent|all> · /allow <id> · /deny <id> [reason] · /snapshot <agent|all> · /integrate <agent> · /sync <agent|all> · /sync --abort <agent> · /import <src> <dst> · /apply [agent] · /apply --abort · /adopt main|integration · /tasks · /reply <id> <text> · /show quiet|activity|full · /history [N] · /conversations · /new <name> · /switch <name> · /doctor · /quit\nplain text is a message; @${names.claude} @${names.codex} @all address; shift-enter, option-enter, ctrl-j or a trailing \\ add a line; option/ctrl with arrows move by word; ctrl-c twice quits`;
+      case "help": return `commands: /budget [N] · /status · /model · /effort · /stop <agent|all> · /allow <id> · /deny <id> [reason] · /snapshot <agent|all> · /integrate <agent> · /sync <agent|all> · /sync --abort <agent> · /import <src> <dst> · /apply [agent] · /apply --abort · /adopt main|integration · /tasks · /reply <id> <text> · /show quiet|activity|full · /history [N] · /conversations · /new <name> · /switch <name> · /doctor · /quit\nplain text is a message; @${names.claude} @${names.codex} @all address; shift-enter, option-enter, ctrl-j or a trailing \\ add a line; option/ctrl with arrows move by word; ctrl-c twice quits`;
       case "budget": { if (args[0]) { await room.setBudget(Number(args[0])); } return `budget ${room.state.creditsUsed}/${room.state.limit}`; }
       case "status": return this.statusText();
+      case "model": return this.pickFor("model");
+      case "effort": return this.pickFor("effort");
       case "stop": { const a = this.agentArg(args[0]); if (!a) return "which agent?"; for (const x of a === "all" ? AGENTS : [a]) await room.stop(x); return "stop requested"; }
       case "allow": case "deny": { const id = [...room.state.prompts.keys()].find((k) => k.startsWith(args[0] ?? "")); if (!id) return `no pending prompt ${args[0] ?? ""}`; await room.answerPrompt(id, cmd === "allow" ? "allow" : "deny", args.slice(1).join(" ") || undefined); return `${cmd}: ${id.slice(0, 8)}`; }
       case "snapshot": return each(args[0], (a) => this.ws.snapshot(a).detail);

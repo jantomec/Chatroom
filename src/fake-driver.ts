@@ -24,10 +24,13 @@ export class FakeDriver implements Driver {
   async deliverViaHook(turn: string, input: string, ids: number[]) { this.hooks.push({ turn, input, ids }); }
   async answerPrompt(id: string, decision: "allow" | "deny", reason?: string) { this.prompts.push({ id, decision, reason }); }
   async interrupt() { this.interrupted++; }
+  model: string | null = null; effort: string | null = null; closes = 0;
+  setModel(m: string | null) { this.model = m; return this.agent === "claude"; }
+  setEffort(e: string | null) { this.effort = e; return this.agent === "claude"; }
   dropped = 0;
   dropDeliveries() { this.dropped++; }
   onEvent(h: (e: DriverEvent) => void) { this.handler = h; }
-  async close() {}
+  async close() { this.closes++; }
   emit(e: DriverEvent) { this.handler?.(e); }
   final(text: string) { this.emit({ type: "final", text }); }
   get lastTurn() { return this.turns[this.turns.length - 1]!; }
