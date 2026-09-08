@@ -3,6 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "description": "Terminal group chat for one user and two coding agents sharing one repository",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jantomec/Chatroom"
+  },
   "type": "module",
   "engines": {
     "node": ">=22.18"
