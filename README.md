@@ -13,9 +13,29 @@ description; `docs/STATUS.md` has the current state and the decision log.
 
 ## Requirements
 
+- macOS or Linux; on Windows, WSL 2 (see below)
 - Node 22.18 or newer (the code runs through Node's type stripping, no build step)
 - git
 - Claude Code and Codex installed and signed in; `chatroom doctor` checks both
+- On Linux and WSL 2, Claude Code's sandbox needs `bubblewrap` and `socat`
+  (`sudo apt-get install bubblewrap socat` on Debian and Ubuntu)
+
+The chatroom has been run on macOS. Linux and WSL 2 go through the same code paths but
+have not been tried yet. Native Windows is not supported: the chatroom finds executables
+and interrupts agents the POSIX way, and Claude Code's own sandbox runs on macOS, Linux
+and WSL 2 only.
+
+### Windows through WSL 2
+
+1. In PowerShell as administrator, run `wsl --install`, then open the WSL terminal.
+   Everything below happens inside WSL, not in PowerShell or CMD.
+2. Install Node 22.18 or newer and git, then Claude Code
+   (`curl -fsSL https://claude.ai/install.sh | bash`) and Codex
+   (`curl -fsSL https://chatgpt.com/codex/install.sh | sh`), and sign in to both.
+3. Install the sandbox packages: `sudo apt-get install bubblewrap socat`.
+4. Keep the repository under the Linux home directory, for example `~/code/my-app`,
+   not under `/mnt/c`, as the Codex documentation recommends.
+5. Install and run the chatroom as below, from the WSL terminal.
 
 ## Install
 

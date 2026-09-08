@@ -78,6 +78,11 @@ chatroom doctor                  # executables, logins, git, sandbox
 chatroom                         # opens the conversation "default"
 ```
 
+Platforms: macOS, where it has been run, and Linux, which follows the same code paths
+untried; Windows through WSL 2 only, since executables are found and agents interrupted
+the POSIX way and Claude Code's sandbox has no native Windows support. The README carries
+the WSL 2 steps.
+
 Inside: plain text goes to both agents, `@clara` or `@phil` to one, `/help` lists the
 commands; Shift-Enter, Option-Enter, Ctrl-J or a trailing backslash add a line, Option
 with the arrows moves by word, ctrl-C twice quits. The screen is Claude Code's shape:
