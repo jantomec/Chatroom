@@ -28,6 +28,14 @@ function scratch() {
 }
 const dirty = (wt: string) => { writeFileSync(join(wt, "src", "app.txt"), "line1\nline2\nagent edit\n"); writeFileSync(join(wt, "new.txt"), "new\n"); writeFileSync(join(wt, "ignored.txt"), "ignored\n"); };
 
+test("a repository without commits is refused with a clear message", () => {
+  const root = mkdtempSync(join(tmpdir(), "chatroom-git-")); const main = realpathSync(root) + "/repo"; mkdirSync(main);
+  sh(main, ["init", "-q", "-b", "main"]);
+  process.env["CHATROOM_STATE_DIR"] = join(root, "state");
+  const repo = new Repo(resolveProject(main, GIT));
+  assert.throws(() => repo.conversation("t1"), /no commits yet/);
+  assert.equal(sh(main, ["worktree", "list"]).split("\n").length, 1);   // nothing was created
+});
 test("project resolution and conversation layout", () => {
   const { repo, conv, main, base } = scratch();
   assert.equal(repo.p.mainWorktree, realpathSync(main)); assert.equal(repo.p.mainBranch, "main");

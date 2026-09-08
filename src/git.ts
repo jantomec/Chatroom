@@ -65,7 +65,10 @@ export class Repo {
   treeOf(oid: string): string { return must(this.git(this.p.commonDir, null, ["rev-parse", `${oid}^{tree}`]), "tree"); }
   parentsOf(oid: string): string[] { return must(this.git(this.p.commonDir, null, ["rev-list", "--parents", "-n", "1", oid]), "parents").split(" ").slice(1); }
   isAncestor(a: string, b: string): boolean { return this.git(this.p.commonDir, null, ["merge-base", "--is-ancestor", a, b]).status === 0; }
-  mainHead(): string { return must(this.git(this.p.commonDir, this.p.mainWorktree, ["rev-parse", "HEAD"]), "main HEAD"); }
+  mainHead(): string {
+    if (!this.refOid("HEAD")) throw new Error('this repository has no commits yet; make a first commit (git commit --allow-empty -m "Initial commit" is enough) and run chatroom again');
+    return must(this.git(this.p.commonDir, this.p.mainWorktree, ["rev-parse", "HEAD"]), "main HEAD");
+  }
   mainBranch(): string | null { const r = this.git(this.p.commonDir, null, ["symbolic-ref", "-q", "--short", "HEAD"]); return r.status === 0 ? r.stdout.trim() : null; }
   headRef(adminDir: string): string | null { const r = this.git(adminDir, null, ["symbolic-ref", "-q", "HEAD"]); return r.status === 0 ? r.stdout.trim() : null; }
   mergeHead(gitDir: string): boolean { return existsSync(join(gitDir, "MERGE_HEAD")); }

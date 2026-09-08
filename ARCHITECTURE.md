@@ -867,7 +867,8 @@ result is visible in `git log` and the reflog.
 ### 13.1 Refs and expectations
 
 Per conversation: `refs/heads/chatroom/<name>/{claude,codex,integration}`, all starting
-at main's HEAD, and the main worktree's branch name recorded at creation. After every
+at main's HEAD (a repository without a commit is refused with a message saying so), and
+the main worktree's branch name recorded at creation. After every
 turn and before every git operation the orchestrator reads the three refs, `main`, and
 each agent worktree's `HEAD`, and appends a `ref` line when something differs from what
 it last saw:

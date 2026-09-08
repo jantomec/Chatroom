@@ -61,6 +61,9 @@ chatroom doctor                  # executables, logins, git, sandbox
 chatroom                         # opens the conversation "default"
 ```
 
+The repository needs at least one commit: the conversation's branches are created from it,
+and an empty repository is refused with a message saying so.
+
 Inside: plain text goes to both agents, `@clara` or `@phil` to one, `/help` lists the
 commands. Shift-Enter, Option-Enter, Ctrl-J or a trailing backslash add a line; ctrl-C
 twice quits. `chatroom new <name>`, `chatroom continue <name>`, `chatroom list` and

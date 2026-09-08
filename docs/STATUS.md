@@ -78,6 +78,9 @@ chatroom doctor                  # executables, logins, git, sandbox
 chatroom                         # opens the conversation "default"
 ```
 
+The repository needs at least one commit: the conversation's branches are created from it,
+and an empty repository is refused with a message saying so.
+
 Platforms: macOS, where it has been run, and Linux, which follows the same code paths
 untried; Windows through WSL 2 only, since executables are found and agents interrupted
 the POSIX way and Claude Code's sandbox has no native Windows support. The README carries
