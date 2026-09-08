@@ -39,9 +39,19 @@ and WSL 2 only.
 
 ## Install
 
+The chatroom is not published on npm. It runs straight from a clone of this repository,
+and the `chatroom` command on PATH points into that folder, so keep the folder where it
+is.
+
 ```sh
-npm install && npm link          # once; `npm unlink -g chatroom` removes it
+git clone https://github.com/jantomec/Chatroom.git
+cd Chatroom
+npm install        # fetches the one dependency
+npm link           # puts the `chatroom` command on PATH, pointing at this folder
 ```
+
+To update, run `git pull` and `npm install` in that folder. `npm unlink -g chatroom`
+removes the command.
 
 ## Use
 
