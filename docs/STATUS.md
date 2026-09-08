@@ -78,8 +78,8 @@ chatroom doctor                  # executables, logins, git, sandbox
 chatroom                         # opens the conversation "default"
 ```
 
-The repository needs at least one commit: the conversation's branches are created from it,
-and an empty repository is refused with a message saying so.
+An empty repository works too: the chatroom makes an empty first commit on the main branch
+as the base and says so.
 
 Platforms: macOS, where it has been run, and Linux, which follows the same code paths
 untried; Windows through WSL 2 only, since executables are found and agents interrupted

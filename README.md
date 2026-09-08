@@ -50,7 +50,8 @@ npm install        # fetches the one dependency
 npm link           # puts the `chatroom` command on PATH, pointing at this folder
 ```
 
-To update, run `git pull` and `npm install` in that folder. `npm unlink -g chatroom`
+To update, run `chatroom update`; it pulls and installs in that folder. When a newer
+version is on GitHub, the chatroom shows a line under its status bar. `npm unlink -g chatroom`
 removes the command.
 
 ## Use
@@ -61,8 +62,8 @@ chatroom doctor                  # executables, logins, git, sandbox
 chatroom                         # opens the conversation "default"
 ```
 
-The repository needs at least one commit: the conversation's branches are created from it,
-and an empty repository is refused with a message saying so.
+An empty repository works too: the chatroom makes an empty first commit on the main branch
+as the base and says so.
 
 Inside: plain text goes to both agents, `@clara` or `@phil` to one, `/help` lists the
 commands. Shift-Enter, Option-Enter, Ctrl-J or a trailing backslash add a line; ctrl-C

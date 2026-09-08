@@ -867,8 +867,8 @@ result is visible in `git log` and the reflog.
 ### 13.1 Refs and expectations
 
 Per conversation: `refs/heads/chatroom/<name>/{claude,codex,integration}`, all starting
-at main's HEAD (a repository without a commit is refused with a message saying so), and
-the main worktree's branch name recorded at creation. After every
+at main's HEAD (an empty repository first gets an empty root commit on main, reported to
+the user), and the main worktree's branch name recorded at creation. After every
 turn and before every git operation the orchestrator reads the three refs, `main`, and
 each agent worktree's `HEAD`, and appends a `ref` line when something differs from what
 it last saw:
@@ -966,7 +966,10 @@ worktrees and disconnects the drivers. `chatroom delete <name>` shows the worktr
 and directories it will remove, reports commits on the agent branches that integration
 does not contain and integration commits that main does not contain, and asks. One
 session per harness per conversation; sessions are isolated from the user's own because
-they live in conversation worktrees and are resumed only by explicit id.
+they live in conversation worktrees and are resumed only by explicit id. `chatroom update`
+pulls the source into the install folder and installs it; at start the chatroom fetches
+GitHub's main in the background and, when the install folder is behind, shows a line
+under the status lines saying so.
 
 The screen is laid out like Claude Code's: the transcript scrolls in the upper part, a
 bordered input box and the status lines stay at the bottom, drawn with a terminal scroll
