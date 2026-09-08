@@ -41,7 +41,7 @@ export function resolveProject(cwd: string, gitBinary: string | null): Project {
   return { gitBin, gitVersion, commonDir, mainWorktree, projectId, mainBranch: branch.status === 0 ? branch.stdout.trim() : null, stateDir: join(stateBase, "chatroom", projectId) };
 }
 
-export interface Conversation { name: string; branches: Record<Agent | "integration", string>; worktrees: Record<Agent | "integration", string>; adminDirs: Record<Agent | "integration", string> }
+export interface Conversation { name: string; branches: Record<Agent | "integration", string>; worktrees: Record<Agent | "integration", string>; adminDirs: Record<Agent | "integration", string>; rootCommit?: string }   // rootCommit: the empty first commit the chatroom made on an empty repository
 
 const identity = { GIT_AUTHOR_NAME: "Chatroom", GIT_AUTHOR_EMAIL: "chatroom@local", GIT_COMMITTER_NAME: "Chatroom", GIT_COMMITTER_EMAIL: "chatroom@local" };
 
@@ -65,9 +65,18 @@ export class Repo {
   treeOf(oid: string): string { return must(this.git(this.p.commonDir, null, ["rev-parse", `${oid}^{tree}`]), "tree"); }
   parentsOf(oid: string): string[] { return must(this.git(this.p.commonDir, null, ["rev-list", "--parents", "-n", "1", oid]), "parents").split(" ").slice(1); }
   isAncestor(a: string, b: string): boolean { return this.git(this.p.commonDir, null, ["merge-base", "--is-ancestor", a, b]).status === 0; }
+  /** The main worktree's HEAD. An empty repository first gets an empty root commit so the conversation
+   *  has a base: the index is left alone, and the commit is authored as the user when git knows who
+   *  they are, as the chatroom otherwise. */
   mainHead(): string {
-    if (!this.refOid("HEAD")) throw new Error('this repository has no commits yet; make a first commit (git commit --allow-empty -m "Initial commit" is enough) and run chatroom again');
-    return must(this.git(this.p.commonDir, this.p.mainWorktree, ["rev-parse", "HEAD"]), "main HEAD");
+    const oid = this.refOid("HEAD");
+    if (oid) return oid;
+    const tree = must(this.git(this.p.commonDir, this.p.mainWorktree, ["write-tree"], { GIT_INDEX_FILE: join(this.p.stateDir, "empty-index") }), "empty tree");
+    let c = runGit(this.p.gitBin, [`--git-dir=${this.p.commonDir}`, "-c", "commit.gpgsign=false", "commit-tree", tree, "-m", "Initial commit"]);
+    if (c.status !== 0) c = this.git(this.p.commonDir, null, ["-c", "commit.gpgsign=false", "commit-tree", tree, "-m", "Initial commit"]);
+    const commit = must(c, "root commit");
+    must(this.git(this.p.commonDir, null, ["update-ref", "HEAD", commit]), "first commit");
+    return commit;
   }
   mainBranch(): string | null { const r = this.git(this.p.commonDir, null, ["symbolic-ref", "-q", "--short", "HEAD"]); return r.status === 0 ? r.stdout.trim() : null; }
   headRef(adminDir: string): string | null { const r = this.git(adminDir, null, ["symbolic-ref", "-q", "HEAD"]); return r.status === 0 ? r.stdout.trim() : null; }
@@ -80,6 +89,7 @@ export class Repo {
     const branches = { claude: `${prefix}/claude`, codex: `${prefix}/codex`, integration: `${prefix}/integration` };
     const base = join(this.p.stateDir, "worktrees", name);
     const worktrees = { claude: join(base, "claude"), codex: join(base, "codex"), integration: join(base, "integration") };
+    const hadCommits = this.refOid("HEAD") !== null;
     const head = this.mainHead();
     for (const k of ["claude", "codex", "integration"] as const) {
       if (!this.refOid(`refs/heads/${branches[k]}`)) must(this.git(this.p.commonDir, null, ["update-ref", `refs/heads/${branches[k]}`, head]), `create ${branches[k]}`);
@@ -92,7 +102,7 @@ export class Repo {
     }
     const adminDirs = {} as Conversation["adminDirs"];
     for (const k of ["claude", "codex", "integration"] as const) adminDirs[k] = must(runGit(this.p.gitBin, ["-C", worktrees[k], "rev-parse", "--path-format=absolute", "--git-dir"]), `admin dir ${k}`);
-    return { name, branches, worktrees, adminDirs };
+    return { name, branches, worktrees, adminDirs, ...(hadCommits ? {} : { rootCommit: head }) };
   }
   removeConversation(c: Conversation): void {
     for (const k of ["claude", "codex", "integration"] as const) {

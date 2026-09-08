@@ -73,6 +73,7 @@ export class Repl {
   private transcript: string[] = [];    // every transcript line printed, styled but not wrapped: the source for a redraw
   private ownsScreen = false;           // true once nothing but the chatroom is on screen (the region has scrolled, or the screen was redrawn)
   private resizing: NodeJS.Timeout | null = null;   // set while resize events are still arriving
+  private banner: string | null = null;             // one line under the status lines, e.g. an available update
   /** Every write to the terminal goes through here; a failure (EIO, EPIPE) ends the session quietly. */
   private write(s: string): void {
     if (this.dead) return;
@@ -91,6 +92,12 @@ export class Repl {
     if (this.tty) { this.rows = this.out.rows ?? 24; this.cols = this.out.columns ?? 80; }
   }
   setShow(level: "quiet" | "activity" | "full"): void { this.show = level; }
+  /** Show a line under the status lines; without a terminal it is printed once. */
+  setBanner(text: string): void {
+    if (this.closed) return;
+    if (!this.tty) { this.write(text + "\n"); return; }
+    this.banner = text; this.drawFooter();
+  }
   private badge(who: string): string { const key = who === this.opts.names.claude ? "claude" : who === this.opts.names.codex ? "codex" : who; return `${BADGE[key] ?? BADGE["chatroom"]} ${who} ${RESET}`; }
 
   // ---------------- transcript ----------------
@@ -182,7 +189,7 @@ export class Repl {
     }
     return { rows, cursorRow, cursorCol };
   }
-  private footerHeight(): number { return Math.min(this.inputRows().rows.length, 8) + 2 + (this.opts.statusBar ? 3 : 0); }
+  private footerHeight(): number { return Math.min(this.inputRows().rows.length, 8) + 2 + (this.opts.statusBar ? 3 : 0) + (this.banner ? 1 : 0); }
   private layout(): void {
     if (!this.tty) return;
     this.rows = this.out.rows ?? 24; this.cols = this.out.columns ?? 80;
@@ -238,6 +245,7 @@ export class Repl {
     }
     s += fit(`${DIM}╰${"─".repeat(Math.max(0, w - 2))}╯${RESET}`);
     if (this.opts.statusBar) for (const l of this.statusLines()) s += "\n" + fit(l);
+    if (this.banner) s += "\n" + fit(`${FG["yellow"]}${this.banner}${RESET}`);
     const row = top + 1 + (cursorRow - first); const col = 5 + cursorCol;
     s += `${ESC}${row};${col}H${ESC}?25h`;
     this.write(s);

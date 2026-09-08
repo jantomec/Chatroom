@@ -28,13 +28,21 @@ function scratch() {
 }
 const dirty = (wt: string) => { writeFileSync(join(wt, "src", "app.txt"), "line1\nline2\nagent edit\n"); writeFileSync(join(wt, "new.txt"), "new\n"); writeFileSync(join(wt, "ignored.txt"), "ignored\n"); };
 
-test("a repository without commits is refused with a clear message", () => {
+test("an empty repository gets an empty first commit on main; the index is left alone", () => {
   const root = mkdtempSync(join(tmpdir(), "chatroom-git-")); const main = realpathSync(root) + "/repo"; mkdirSync(main);
   sh(main, ["init", "-q", "-b", "main"]);
+  writeFileSync(join(main, "a.txt"), "a\n"); sh(main, ["add", "a.txt"]);
   process.env["CHATROOM_STATE_DIR"] = join(root, "state");
-  const repo = new Repo(resolveProject(main, GIT));
-  assert.throws(() => repo.conversation("t1"), /no commits yet/);
-  assert.equal(sh(main, ["worktree", "list"]).split("\n").length, 1);   // nothing was created
+  const saved = { ...process.env }; Object.assign(process.env, env);   // the user's identity, as git would see it
+  try {
+    const conv = new Repo(resolveProject(main, GIT)).conversation("t1");
+    assert.equal(conv.rootCommit, sh(main, ["rev-parse", "HEAD"]));
+  } finally { for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k]; Object.assign(process.env, saved); }
+  assert.equal(sh(main, ["rev-list", "--count", "HEAD"]), "1");
+  assert.equal(sh(main, ["ls-tree", "HEAD"]), "");                        // the commit is empty
+  assert.equal(sh(main, ["diff", "--cached", "--name-only"]), "a.txt");   // what was staged is still staged
+  assert.equal(sh(main, ["log", "-1", "--format=%an <%ae>"]), "T <t@x>");  // authored as the user
+  assert.equal(sh(main, ["worktree", "list"]).split("\n").length, 4);
 });
 test("project resolution and conversation layout", () => {
   const { repo, conv, main, base } = scratch();

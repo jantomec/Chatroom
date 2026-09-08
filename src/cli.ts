@@ -1,5 +1,6 @@
 // The chatroom command: project setup, configuration, conversations, the session that
 // wires the log, room, IPC, drivers, git and REPL together, and the agent commands.
+import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, existsSync, mkdirSync, writeFileSync, appendFileSync, readdirSync, rmSync, accessSync, constants } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -23,7 +24,36 @@ chatroom continue <name>      make a conversation current and open it
 chatroom delete <name> [--yes]
 chatroom log [name] [--json]  print a conversation's log
 chatroom doctor [--live]      check the installation; --live runs one turn per agent
+chatroom update               pull the latest source into the install folder and install it
 chatroom --raw ...            also keep the raw vendor streams under the conversation directory`;
+
+// ---------------- the installation ----------------
+const INSTALL_ROOT = resolve(import.meta.dirname, "..");
+const quietGit = { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_SSH_COMMAND: "ssh -o BatchMode=yes" };   // never wait for a password
+/** How many commits GitHub's main is ahead of the install folder; 0 when unknown or not a clone. */
+async function commitsBehind(): Promise<number> {
+  if (!existsSync(join(INSTALL_ROOT, ".git"))) return 0;
+  await new Promise<void>((done) => {
+    const c = spawn("git", ["-C", INSTALL_ROOT, "fetch", "-q", "origin", "main"], { env: quietGit, stdio: "ignore" });
+    const t = setTimeout(() => c.kill(), 10000);
+    c.on("exit", () => { clearTimeout(t); done(); }); c.on("error", () => { clearTimeout(t); done(); });
+  });
+  const r = spawnSync("git", ["-C", INSTALL_ROOT, "rev-list", "--count", "HEAD..origin/main"], { env: quietGit, encoding: "utf8" });
+  return r.status === 0 ? Number(r.stdout.trim()) || 0 : 0;
+}
+/** `chatroom update`: git pull and npm install in the install folder. */
+function update(): number {
+  if (!existsSync(join(INSTALL_ROOT, ".git"))) { process.stderr.write(`chatroom runs from ${INSTALL_ROOT}, which is not a git clone; download the source again and run npm install there\n`); return 1; }
+  const head = () => spawnSync("git", ["-C", INSTALL_ROOT, "rev-parse", "--short", "HEAD"], { encoding: "utf8" }).stdout.trim();
+  const before = head();
+  const pull = spawnSync("git", ["-C", INSTALL_ROOT, "pull", "-q", "--ff-only"], { env: quietGit, stdio: "inherit" });
+  if (pull.status !== 0) { process.stderr.write(`git pull failed in ${INSTALL_ROOT}; local changes there need to be committed or stashed first\n`); return 1; }
+  const after = head();
+  const install = spawnSync("npm", ["install", "--no-fund", "--no-audit"], { cwd: INSTALL_ROOT, stdio: "inherit" });
+  if (install.status !== 0) { process.stderr.write(`npm install failed in ${INSTALL_ROOT}\n`); return 1; }
+  process.stdout.write(before === after ? `already up to date (${after})\n` : `updated ${before} → ${after}\n`);
+  return 0;
+}
 
 // ---------------- configuration ----------------
 const KEYS: Record<string, (c: Config, v: any) => void> = {
@@ -203,10 +233,12 @@ class Session {
     process.on("uncaughtException", onError); process.on("unhandledRejection", onError);
     await this.repl.start();
     this.print(`chatroom · conversation "${this.name}" · ${shortPath(project.mainWorktree)} · ${config.names.claude} (Claude) and ${config.names.codex} (Codex) · /help for commands`);
+    if (this.conv.rootCommit) this.print(`the repository had no commits, so an empty first commit ${this.conv.rootCommit.slice(0, 7)} was made on ${project.mainBranch} as the base; files you have not committed stay invisible to the agents, as always`);
     const recent = [...this.room.state.messages.values()].slice(-5);
     for (const m of recent) this.print(`#${m.id} ${config.names[m.from as Agent] ?? m.from} → ${m.to.map((t) => "@" + (config.names[t as Agent] ?? t)).join(" ")}  ${m.at.slice(11, 16)}  ${m.via ?? ""}\n  ${m.body.split("\n").join("\n  ")}`);
     this.poll = setInterval(() => { void this.pollIpc(); }, 150);
     void this.room.warm().then(() => this.repl?.redraw());
+    void commitsBehind().then((n) => { if (n > 0) this.repl?.setBanner(`update available: ${n} commit${n === 1 ? "" : "s"} behind · run chatroom update`); });
     await this.room.tick();
     await new Promise<void>((r) => { this.done = r; });
     process.off("SIGTERM", onSignal); process.off("SIGHUP", onHangup); process.off("uncaughtException", onError); process.off("unhandledRejection", onError);
@@ -348,6 +380,7 @@ export async function main(argv: string[]): Promise<number> {
   const raw = argv.includes("--raw"); const args = argv.filter((a) => a !== "--raw");
   const cmd = args[0];
   if (cmd === "--help" || cmd === "-h" || cmd === "help") { process.stdout.write(USAGE + "\n"); return 0; }
+  if (cmd === "update") return update();
   const ctx = openProject(raw);
   switch (cmd) {
     case undefined: return runSessions(ctx, currentName(ctx.root));
@@ -356,7 +389,7 @@ export async function main(argv: string[]): Promise<number> {
     case "list": { const cur = currentName(ctx.root); for (const n of listConversations(ctx.root)) process.stdout.write(`${n === cur ? "*" : " "} ${n}\n`); return 0; }
     case "log": { const n = args[1] && !args[1].startsWith("--") ? args[1] : currentName(ctx.root); const p = join(ctx.root, "conversations", n, "log.jsonl"); if (!existsSync(p)) throw new Error(`no conversation ${n}`); const text = readFileSync(p, "utf8"); if (args.includes("--json")) { process.stdout.write(text); return 0; } for (const line of text.split("\n").filter(Boolean)) { let r: any; try { r = JSON.parse(line); } catch { continue; } if (r.kind === "message") process.stdout.write(`#${r.id} ${r.at.slice(11, 19)} ${ctx.config.names[r.from as Agent] ?? r.from} → ${(r.to as string[]).map((t) => "@" + (ctx.config.names[t as Agent] ?? t)).join(" ")}${r.held ? " (held)" : ""}\n  ${String(r.body).split("\n").join("\n  ")}\n`); else if (r.kind !== "status") process.stdout.write(`   ${r.at.slice(11, 19)} ${r.kind}${r.event ? " " + r.event : ""}${r.agent ? " " + r.agent : ""}${r.op ? " " + r.op : ""}${r.marker ? ` [${r.marker}] #${r.task} ${r.effect}` : ""}${r.detail ? " " + r.detail : ""}${r.text ? " " + r.text : ""}\n`); } return 0; }
     case "delete": { const n = args[1]; if (!n) throw new Error("usage: chatroom delete <name> [--yes]"); const conv = ctx.repo.conversation(n); const u = ctx.repo.unintegrated(conv); process.stdout.write(`will remove: worktrees under ${shortPath(join(ctx.project.stateDir, "worktrees", n))}, refs chatroom/${n}/{claude,codex,integration}, ${shortPath(join(ctx.root, "conversations", n))}\ncommits not in integration: claude ${u.claude}, codex ${u.codex}; integration commits not in main: ${u.integration}\n`); if (!args.includes("--yes")) { process.stdout.write("run again with --yes to delete\n"); return 1; } ctx.repo.removeConversation(conv); rmSync(join(ctx.root, "conversations", n), { recursive: true, force: true }); rmSync(join(ctx.project.stateDir, "ipc", n), { recursive: true, force: true }); if (currentName(ctx.root) === n) rmSync(currentFile(ctx.root), { force: true }); process.stdout.write("deleted\n"); return 0; }
-    case "doctor": { const checks = staticChecks({ claude: findOnPath("claude", join(homedir(), ".local", "bin", "claude")), codex: findOnPath("codex", "codex"), git: ctx.project.gitBin, gitVersion: ctx.project.gitVersion }); const head = ctx.repo.refOid("HEAD"); checks.push({ name: "repository has a commit", ok: head !== null, detail: head ? ctx.repo.short(head) : 'none yet; git commit --allow-empty -m "Initial commit" is enough' }); for (const c of checks) process.stdout.write(`${c.ok ? "ok " : "FAIL"} ${c.name}: ${c.detail}\n`); if (args.includes("--live")) return liveDoctor(ctx); return checks.every((c) => c.ok) ? 0 : 1; }
+    case "doctor": { const checks = staticChecks({ claude: findOnPath("claude", join(homedir(), ".local", "bin", "claude")), codex: findOnPath("codex", "codex"), git: ctx.project.gitBin, gitVersion: ctx.project.gitVersion }); for (const c of checks) process.stdout.write(`${c.ok ? "ok " : "FAIL"} ${c.name}: ${c.detail}\n`); if (args.includes("--live")) return liveDoctor(ctx); return checks.every((c) => c.ok) ? 0 : 1; }
     default: process.stdout.write(USAGE + "\n"); return 2;
   }
 }
