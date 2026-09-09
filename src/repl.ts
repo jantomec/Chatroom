@@ -21,6 +21,7 @@ export interface ReplOptions {
   interrupt?: () => Promise<string | null>;               // Esc; resolves to a withdrawn message body to put back into the box
   input?: NodeJS.ReadStream; output?: NodeJS.WriteStream;
   traceFile?: string;                                     // screen trace, one line per operation; CHATROOM_TUI_TRACE overrides
+  title?: string;                                         // the terminal window's title while the session runs
 }
 
 const ESC = "\x1b[";
@@ -324,6 +325,7 @@ export class Repl {
     this.out.on("error", () => { this.dead = true; void this.quit(); });
     this.out.on("resize", this.resize);
     this.write(`${ESC}?2004h`);   // bracketed paste: a pasted block arrives as one unit
+    if (this.opts.title) this.write(`\x1b]2;${this.opts.title.replace(/[\x00-\x1f\x07]/g, "")}\x07`);   // the window title
     this.rows = this.out.rows ?? 24; this.cols = this.out.columns ?? 80;
     const row = await new Promise<number>((resolve) => {
       const t = setTimeout(() => { this.cursorReply = null; resolve(this.rows); }, 400);

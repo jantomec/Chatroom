@@ -3,7 +3,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, existsSync, mkdirSync, writeFileSync, appendFileSync, readdirSync, rmSync, accessSync, constants } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { NAMES_DEFAULT, brief as makeBrief } from "./brief.ts";
 import { ClaudeDriver } from "./drivers/claude.ts";
@@ -222,6 +222,7 @@ class Session {
       bar: () => this.barInfo(),
       command: (line) => this.command(line),
       interrupt: () => this.room.interruptByUser(),
+      title: basename(project.mainWorktree),
       onQuit: () => this.close(),
     });
     const onSignal = () => { void this.repl?.quit(); };

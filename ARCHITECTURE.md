@@ -977,7 +977,8 @@ under the status lines saying so.
 
 The screen is laid out like Claude Code's: the transcript scrolls in the upper part, a
 bordered input box and the status lines stay at the bottom, drawn with a terminal scroll
-region and raw keystrokes, never the alternate screen. Plain input is a user message; a
+region and raw keystrokes, never the alternate screen, and the terminal window is titled
+with the project directory's name. Plain input is a user message; a
 backslash at the end of a line continues it on the next; ctrl-C clears the input, or
 quits when pressed twice on an empty box; Esc interrupts every active turn, as in Claude
 Code: a user message no agent has read yet is withdrawn and put back into the box for
