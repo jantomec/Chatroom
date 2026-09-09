@@ -98,6 +98,9 @@ test("/model and /effort: recorded, applied at the next turn, Claude resumed for
   const { room, claude, codex, path } = setup();
   await room.setOverride("claude", { model: "opus" });
   assert.equal(claude.model, "opus"); assert.equal(room.state.overrides.claude.model, "opus");
+  assert.equal(room.state.status.claude.model, "opus", "the status bar shows the choice at once");
+  claude.emit({ type: "status", status: { model: "claude-opus-5" } }); await room.idle();
+  assert.equal(room.state.status.claude.model, "claude-opus-5", "the harness's report replaces it");
   assert.equal(claude.closes, 0, "not connected yet: nothing to resume");
   await room.postUser("Go.");                                     // both connect and start
   assert.equal(claude.connects.length, 1);

@@ -77,9 +77,9 @@ export function fold(records: LogRecord[], limit: number): RoomState {
         if (r.event === "released") for (const id of r.messages ?? []) for (const a of AGENTS) s.heldFor[a].delete(id);
         break;
       }
-      case "config": {
-        if (r.model !== undefined) s.overrides[r.agent].model = r.model;
-        if (r.effort !== undefined) s.overrides[r.agent].effort = r.effort;
+      case "config": {   // the choice shows in the status bar at once; the harness's next report replaces it
+        if (r.model !== undefined) { s.overrides[r.agent].model = r.model; s.status[r.agent].model = r.model; }
+        if (r.effort !== undefined) { s.overrides[r.agent].effort = r.effort; s.status[r.agent].effort = r.effort; }
         break;
       }
       case "interrupt": {
@@ -536,7 +536,7 @@ export class Room {
   }
   /** /model and /effort: record the choice, hand it to the driver, and apply it from the next turn. */
   async setOverride(a: Agent, patch: { model?: string | null; effort?: string | null }): Promise<string> {
-    this.log.append({ kind: "config", agent: a, ...patch }); this.refold();
+    this.log.append({ kind: "config", agent: a, ...patch }); this.refold(); this.hooks.status?.();
     let needs = false;
     if (patch.model !== undefined) needs = this.drivers[a].setModel(patch.model) || needs;
     if (patch.effort !== undefined) needs = this.drivers[a].setEffort(patch.effort) || needs;

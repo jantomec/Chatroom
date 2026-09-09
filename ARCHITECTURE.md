@@ -427,7 +427,8 @@ interface Driver {
 ```
 
 A `status` event carries only what the harness reported; a configured value is never
-shown as a report (§14.1).
+recorded as a report (§14.1). The status bar shows a `/model` or `/effort` choice from
+the moment it is made, and the harness's next report replaces it.
 
 ### 9.2 Claude
 
